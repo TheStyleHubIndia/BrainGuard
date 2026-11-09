@@ -70,6 +70,8 @@ export default function App() {
   const [usageLoading, setUsageLoading] = useState(false);
   const [usageError, setUsageError] = useState("");
   const [overlayPermission, setOverlayPermission] = useState(false);
+  const [swipeAccessibility, setSwipeAccessibility] = useState(false);
+  const [swipeCounts, setSwipeCounts] = useState({ total: 0, apps: {} });
   const [floatingEnabled, setFloatingEnabled] = useState(false);
   const [overlayError, setOverlayError] = useState("");
   const today = localDateKey();
@@ -111,20 +113,43 @@ export default function App() {
     catch (error) { Alert.alert("Settings error", error?.message || "Open Android Settings > Special app access > Usage access."); }
   }
 
-  async function refreshOverlayStatus() {
+  async function refreshSwipeStatus() {
     if (!usageNative) return;
-    try { setOverlayPermission(!!(await usageNative.hasOverlayPermission())); }
-    catch (error) { setOverlayError(error?.message || "Could not check overlay permission."); }
+    try {
+      const [enabled, counts, overlay] = await Promise.all([
+        usageNative.hasSwipeAccessibilityEnabled(),
+        usageNative.getTodaySwipeCounts(),
+        usageNative.hasOverlayPermission()
+      ]);
+      setSwipeAccessibility(!!enabled);
+      setSwipeCounts(counts || { total: 0, apps: {} });
+      setOverlayPermission(!!overlay);
+    } catch (error) {
+      setOverlayError(error?.message || "Could not check swipe counter permissions.");
+    }
+  }
+
+  async function enableSwipeTracking() {
+    if (!usageNative) {
+      Alert.alert("Android APK required", "Swipe counting requires the installed native BrainGuard APK.");
+      return;
+    }
+    try {
+      await usageNative.openAccessibilitySettings();
+      setOverlayError("Android Accessibility settings opened. Select BrainGuard swipe counter and turn it ON. Return to BrainGuard afterwards.");
+    } catch (error) {
+      setOverlayError(error?.message || "Could not open Accessibility settings.");
+    }
   }
 
   async function enableFloatingWidget() {
     if (!usageNative) { Alert.alert("Android APK required", "Floating widget requires the installed native BrainGuard APK."); return; }
     setOverlayError("");
     try {
-      const usageAllowed = await usageNative.hasUsageAccess();
-      if (!usageAllowed) {
-        Alert.alert("Usage Access required", "Enable Usage Access for BrainGuard first, then enable the floating counter.");
-        await requestUsageAccess();
+      const swipeAllowed = await usageNative.hasSwipeAccessibilityEnabled();
+      setSwipeAccessibility(!!swipeAllowed);
+      if (!swipeAllowed) {
+        await enableSwipeTracking();
         return;
       }
       const allowed = await usageNative.hasOverlayPermission();
@@ -147,9 +172,9 @@ export default function App() {
 
   useEffect(() => {
     refreshUsage();
-    refreshOverlayStatus();
+    refreshSwipeStatus();
     const sub = AppState.addEventListener("change", state => {
-      if (state === "active") { refreshUsage(); refreshOverlayStatus(); }
+      if (state === "active") { refreshUsage(); refreshSwipeStatus(); }
     });
     return () => sub.remove();
   }, []);
@@ -311,8 +336,29 @@ export default function App() {
       </Card>
       <Card><Text style={s.sectionTitle}>Last 7 days — tracked apps</Text>{usageWeek.length ? usageWeek.map(item => <View key={item.packageName} style={s.appUsageRow}><Text style={s.appUsageName}>{item.app}</Text><Text style={s.appUsageTime}>{Math.round(item.minutes || 0)} min</Text></View>) : <Text style={s.muted}>Grant Usage Access and refresh to load the report.</Text>}</Card>
       <Card>
+        <Text style={s.sectionTitle}>Reels / Shorts swipe counter</Text>
+        <Text style={s.muted}>Today's estimated feed swipes. Counter resets automatically at local midnight.</Text>
+        <Text style={{ color: "#F5F6FA", fontSize: 42, fontWeight: "900", marginTop: 8 }}>{swipeCounts.total || 0}</Text>
+        {[
+          ["Instagram Reels", "instagram"],
+          ["YouTube Shorts", "youtube"],
+          ["Facebook Reels", "facebook"],
+          ["Snapchat Spotlight", "snapchat"]
+        ].map(([label, key]) => (
+          <View key={key} style={s.appUsageRow}>
+            <Text style={s.appUsageName}>{label}</Text>
+            <Text style={s.appUsageTime}>{(swipeCounts.apps || {})[key] || 0}</Text>
+          </View>
+        ))}
+        <Text style={s.statusTag}>{swipeAccessibility ? "ACCESSIBILITY TRACKING ENABLED" : "ACCESSIBILITY PERMISSION REQUIRED"}</Text>
+        <TouchableOpacity style={s.primaryButtonWide} onPress={enableSwipeTracking}>
+          <Text style={s.buttonText}>{swipeAccessibility ? "OPEN ACCESSIBILITY SETTINGS" : "ENABLE SWIPE COUNTING"}</Text>
+        </TouchableOpacity>
+        <Text style={s.muted}>BrainGuard listens only for scroll and feed-content-change event types from these four apps. It does not retrieve screen text or content. Detection is an estimate and app updates can change its accuracy.</Text>
+      </Card>
+      <Card>
         <Text style={s.sectionTitle}>Floating Brain Widget</Text>
-        <Text style={s.muted}>Show a draggable brain counter over other apps, similar to the floating counter in your reference screenshot. It displays combined daily foreground time for Instagram, YouTube, Facebook and Snapchat, refreshed every minute.</Text>
+        <Text style={s.muted}>Show a draggable brain and today's Reels / Shorts swipe count over other apps.</Text>
         <Text style={s.statusTag}>{floatingEnabled ? "FLOATING WIDGET ENABLED" : overlayPermission ? "OVERLAY PERMISSION GRANTED" : "OVERLAY PERMISSION REQUIRED"}</Text>
         <TouchableOpacity style={s.primaryButtonWide} onPress={floatingEnabled ? disableFloatingWidget : enableFloatingWidget}>
           <Text style={s.buttonText}>{floatingEnabled ? "TURN OFF FLOATING WIDGET" : overlayPermission ? "ENABLE FLOATING WIDGET" : "GRANT OVERLAY PERMISSION"}</Text>
