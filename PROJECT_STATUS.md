@@ -22,6 +22,7 @@
 - OS notifications / focus reminders
 - Successful APK build for the native integration (pending CI)
 - Android device testing and OEM-specific verification
+- Verify overlay permission flow, drag behavior, service persistence and notification on target Android devices
 
 ## Important behavior
 - Native usage totals are separate from manually logged sessions.
