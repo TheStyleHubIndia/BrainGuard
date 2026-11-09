@@ -51,3 +51,10 @@ A GitHub Actions workflow is included at `.github/workflows/android-build.yml`.
 5. Open the completed run and download the `BrainGuard-Android-APK` artifact.
 
 The artifact is a debug-signed release-variant APK intended for testing/sideloading, not a Play Store production release. GitHub-hosted runner availability and free-minute limits apply. The first build may fail if Expo/Android dependency versions need adjustment; inspect the workflow logs rather than assuming an APK was produced.
+
+
+### Swipe direction and rewatch handling
+- Counts forward vertical scroll events only; reverse scroll events are ignored.
+- After a reverse scroll, the next forward event is suppressed as a likely return to previously viewed content.
+- Direction-aware counting uses Android scroll deltas (API 28+); unsupported or zero-delta events are not counted.
+- This is heuristic duplicate suppression, not exact Reel identity or verified watch completion.
