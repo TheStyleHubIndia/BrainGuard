@@ -11,6 +11,9 @@
     },
     "splash": {
       "backgroundColor": "#090B14"
-    }
+    },
+    "plugins": [
+      "./plugins/withUsageStats"
+    ]
   }
 }
