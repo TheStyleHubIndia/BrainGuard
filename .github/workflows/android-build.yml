@@ -11,6 +11,7 @@ on:
       - "package.json"
       - "babel.config.js"
       - "plugins/**"
+      - "src/**"
       - ".github/workflows/android-build.yml"
 
 permissions:
