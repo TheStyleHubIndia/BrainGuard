@@ -12,6 +12,33 @@ function withUsageStats(config) {
     if (!manifest["uses-permission"].some((p) => p.$["android:name"] === permission)) {
       manifest["uses-permission"].push({ $: { "android:name": permission, "tools:ignore": "ProtectedPermissions" } });
     }
+    const overlayPermissions = [
+      "android.permission.SYSTEM_ALERT_WINDOW",
+      "android.permission.FOREGROUND_SERVICE",
+      "android.permission.FOREGROUND_SERVICE_SPECIAL_USE",
+      "android.permission.POST_NOTIFICATIONS"
+    ];
+    overlayPermissions.forEach((name) => {
+      if (!manifest["uses-permission"].some((p) => p.$["android:name"] === name)) {
+        manifest["uses-permission"].push({ $: { "android:name": name } });
+      }
+    });
+    manifest.service = manifest.service || [];
+    if (!manifest.service.some((s) => s.$["android:name"] === ".usage.BrainGuardOverlayService")) {
+      manifest.service.push({
+        $: {
+          "android:name": ".usage.BrainGuardOverlayService",
+          "android:exported": "false",
+          "android:foregroundServiceType": "specialUse"
+        },
+        "property": [{
+          $: {
+            "android:name": "android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE",
+            "android:value": "User-enabled floating digital wellbeing counter overlay"
+          }
+        }]
+      });
+    }
     manifest.$ = manifest.$ || {};
     manifest.$["xmlns:tools"] = "http://schemas.android.com/tools";
     return config;
@@ -125,6 +152,48 @@ public class UsageStatsModule extends ReactContextBaseJavaModule {
     }
   }
 
+  @ReactMethod public void hasOverlayPermission(Promise promise) {
+    promise.resolve(Build.VERSION.SDK_INT < 23 || Settings.canDrawOverlays(context));
+  }
+
+  @ReactMethod public void openOverlaySettings(Promise promise) {
+    try {
+      if (Build.VERSION.SDK_INT >= 23 && !Settings.canDrawOverlays(context)) {
+        Intent intent = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+            Uri.parse("package:" + context.getPackageName()));
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        context.startActivity(intent);
+      }
+      promise.resolve(true);
+    } catch (Exception e) {
+      promise.reject("OVERLAY_SETTINGS_ERROR", "Could not open overlay permission settings.", e);
+    }
+  }
+
+  @ReactMethod public void startFloatingWidget(Promise promise) {
+    try {
+      if (Build.VERSION.SDK_INT >= 23 && !Settings.canDrawOverlays(context)) {
+        promise.reject("NO_OVERLAY_PERMISSION", "Grant Display over other apps permission first.");
+        return;
+      }
+      Intent intent = new Intent(context, BrainGuardOverlayService.class);
+      if (Build.VERSION.SDK_INT >= 26) context.startForegroundService(intent);
+      else context.startService(intent);
+      promise.resolve(true);
+    } catch (Exception e) {
+      promise.reject("OVERLAY_START_ERROR", "Could not start floating widget.", e);
+    }
+  }
+
+  @ReactMethod public void stopFloatingWidget(Promise promise) {
+    try {
+      context.stopService(new Intent(context, BrainGuardOverlayService.class));
+      promise.resolve(true);
+    } catch (Exception e) {
+      promise.reject("OVERLAY_STOP_ERROR", "Could not stop floating widget.", e);
+    }
+  }
+
   @ReactMethod public void getUsageStats(int days, Promise promise) {
     try {
       if (!hasAccess()) {
@@ -174,6 +243,164 @@ public class UsageStatsModule extends ReactContextBaseJavaModule {
       promise.reject("USAGE_STATS_ERROR", "Could not read app usage statistics.", e);
     }
   }
+}
+`);
+
+    fs.writeFileSync(path.join(root, "BrainGuardOverlayService.java"), `package ${PACKAGE};
+
+import android.app.Notification;
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
+import android.app.Service;
+import android.app.usage.UsageStats;
+import android.app.usage.UsageStatsManager;
+import android.content.Intent;
+import android.graphics.Color;
+import android.graphics.PixelFormat;
+import android.graphics.Typeface;
+import android.graphics.drawable.GradientDrawable;
+import android.os.Build;
+import android.os.Handler;
+import android.os.IBinder;
+import android.provider.Settings;
+import android.view.Gravity;
+import android.view.MotionEvent;
+import android.view.View;
+import android.view.WindowManager;
+import android.widget.LinearLayout;
+import android.widget.TextView;
+import java.util.Calendar;
+import java.util.List;
+
+public class BrainGuardOverlayService extends Service {
+  private static final String CHANNEL = "brainguard_overlay";
+  private WindowManager windowManager;
+  private View bubble;
+  private TextView counter;
+  private final Handler handler = new Handler();
+  private int x, y;
+  private final Runnable updater = new Runnable() {
+    @Override public void run() {
+      if (counter != null) counter.setText("🧠  " + getTodayMinutes() + "m");
+      handler.postDelayed(this, 60000L);
+    }
+  };
+
+  @Override public void onCreate() {
+    super.onCreate();
+    createChannel();
+    Notification notification = new Notification.Builder(this, CHANNEL)
+      .setContentTitle("BrainGuard floating counter")
+      .setContentText("Your wellbeing counter is active")
+      .setSmallIcon(android.R.drawable.ic_menu_info_details)
+      .setOngoing(true)
+      .build();
+    startForeground(7103, notification);
+    if (Settings.canDrawOverlays(this)) showBubble();
+  }
+
+  private void createChannel() {
+    if (Build.VERSION.SDK_INT >= 26) {
+      NotificationChannel channel = new NotificationChannel(CHANNEL, "Floating counter", NotificationManager.IMPORTANCE_LOW);
+      NotificationManager nm = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
+      if (nm != null) nm.createNotificationChannel(channel);
+    }
+  }
+
+  private int getTodayMinutes() {
+    try {
+      UsageStatsManager manager = (UsageStatsManager) getSystemService(USAGE_STATS_SERVICE);
+      if (manager == null) return 0;
+      Calendar cal = Calendar.getInstance();
+      cal.set(Calendar.HOUR_OF_DAY, 0); cal.set(Calendar.MINUTE, 0);
+      cal.set(Calendar.SECOND, 0); cal.set(Calendar.MILLISECOND, 0);
+      long now = System.currentTimeMillis();
+      long total = 0L;
+      List<UsageStats> stats = manager.queryUsageStats(UsageStatsManager.INTERVAL_DAILY, cal.getTimeInMillis(), now);
+      if (stats != null) for (UsageStats stat : stats) {
+        String p = stat.getPackageName();
+        if ("com.instagram.android".equals(p) || "com.google.android.youtube".equals(p) ||
+            "com.facebook.katana".equals(p) || "com.snapchat.android".equals(p)) {
+          total += stat.getTotalTimeInForeground();
+        }
+      }
+      return (int) Math.round(total / 60000.0);
+    } catch (Exception e) { return 0; }
+  }
+
+  private void showBubble() {
+    if (bubble != null || windowManager == null) return;
+    LinearLayout box = new LinearLayout(this);
+    box.setOrientation(LinearLayout.VERTICAL);
+    box.setGravity(Gravity.CENTER);
+    box.setPadding(13, 9, 13, 9);
+    GradientDrawable bg = new GradientDrawable();
+    bg.setColor(Color.rgb(61, 39, 25));
+    bg.setCornerRadius(48);
+    bg.setStroke(3, Color.rgb(255, 211, 143));
+    box.setBackground(bg);
+
+    TextView brain = new TextView(this);
+    brain.setText("🧠");
+    brain.setTextSize(22);
+    brain.setGravity(Gravity.CENTER);
+    box.addView(brain);
+
+    counter = new TextView(this);
+    counter.setTextColor(Color.rgb(255, 229, 180));
+    counter.setTextSize(16);
+    counter.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+    counter.setGravity(Gravity.CENTER);
+    counter.setText(" " + getTodayMinutes() + "m ");
+    box.addView(counter);
+
+    final WindowManager.LayoutParams params = new WindowManager.LayoutParams(
+      WindowManager.LayoutParams.WRAP_CONTENT,
+      WindowManager.LayoutParams.WRAP_CONTENT,
+      Build.VERSION.SDK_INT >= 26 ? WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY : WindowManager.LayoutParams.TYPE_PHONE,
+      WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
+      PixelFormat.TRANSLUCENT
+    );
+    params.gravity = Gravity.TOP | Gravity.CENTER_HORIZONTAL;
+    params.x = 0; params.y = 90;
+    box.setOnTouchListener(new View.OnTouchListener() {
+      private int startX, startY;
+      private float downX, downY;
+      @Override public boolean onTouch(View v, MotionEvent event) {
+        if (event.getAction() == MotionEvent.ACTION_DOWN) {
+          startX = params.x; startY = params.y;
+          downX = event.getRawX(); downY = event.getRawY(); return true;
+        }
+        if (event.getAction() == MotionEvent.ACTION_MOVE) {
+          params.x = startX + (int)(event.getRawX() - downX);
+          params.y = startY + (int)(event.getRawY() - downY);
+          try { windowManager.updateViewLayout(box, params); } catch (Exception ignored) {}
+          return true;
+        }
+        return event.getAction() == MotionEvent.ACTION_UP;
+      }
+    });
+    windowManager.addView(box, params);
+    bubble = box;
+    handler.post(updater);
+  }
+
+  @Override public int onStartCommand(Intent intent, int flags, int startId) {
+    if (!Settings.canDrawOverlays(this)) { stopSelf(); return START_NOT_STICKY; }
+    if (bubble == null) { windowManager = (WindowManager)getSystemService(WINDOW_SERVICE); showBubble(); }
+    return START_STICKY;
+  }
+
+  @Override public void onDestroy() {
+    handler.removeCallbacks(updater);
+    if (bubble != null && windowManager != null) {
+      try { windowManager.removeView(bubble); } catch (Exception ignored) {}
+      bubble = null; counter = null;
+    }
+    super.onDestroy();
+  }
+
+  @Override public IBinder onBind(Intent intent) { return null; }
 }
 `);
     return config;
