@@ -333,6 +333,7 @@ import java.util.Map;
 public class BrainGuardSwipeAccessibilityService extends AccessibilityService {
   private static final Map<String, String> TARGETS = new HashMap<>();
   private final Map<String, Long> lastCounted = new HashMap<>();
+  private final Map<String, Boolean> ignoreNextForwardAfterReverse = new HashMap<>();
   static {
     TARGETS.put("com.instagram.android", "instagram");
     TARGETS.put("com.google.android.youtube", "youtube");
@@ -341,23 +342,34 @@ public class BrainGuardSwipeAccessibilityService extends AccessibilityService {
   }
 
   @Override public void onAccessibilityEvent(AccessibilityEvent event) {
-    if (event == null) return;
+    if (event == null || event.getEventType() != AccessibilityEvent.TYPE_VIEW_SCROLLED) return;
+    if (Build.VERSION.SDK_INT < 28) return;
+
     CharSequence packageName = event.getPackageName();
     if (packageName == null) return;
     String key = TARGETS.get(packageName.toString());
     if (key == null) return;
 
-    int type = event.getEventType();
-    boolean scrollEvent = type == AccessibilityEvent.TYPE_VIEW_SCROLLED;
-    boolean feedChange = type == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED &&
-      (event.getContentChangeTypes() & AccessibilityEvent.CONTENT_CHANGE_TYPE_SUBTREE) != 0;
-    if (!scrollEvent && !feedChange) return;
+    int deltaY = event.getScrollDeltaY();
+    if (deltaY == 0) return;
 
     long now = event.getEventTime();
     Long previous = lastCounted.get(key);
-    // Coalesce duplicate scroll/content-change events emitted for one swipe.
-    if (previous != null && now - previous < 1100L) return;
+    if (previous != null && now - previous < 650L) return;
     lastCounted.put(key, now);
+
+    // Positive scroll delta is treated as forward feed movement (normally finger swipe-up).
+    // Reverse movement is treated as revisiting earlier content and is never counted.
+    if (deltaY < 0) {
+      ignoreNextForwardAfterReverse.put(key, true);
+      return;
+    }
+
+    // The first forward movement after reversing may be a return to an already seen Reel.
+    if (Boolean.TRUE.equals(ignoreNextForwardAfterReverse.get(key))) {
+      ignoreNextForwardAfterReverse.put(key, false);
+      return;
+    }
 
     String day = new SimpleDateFormat("yyyy-MM-dd", Locale.US).format(new Date());
     SharedPreferences prefs = getSharedPreferences("brainguard_swipe_counts", MODE_PRIVATE);
