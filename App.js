@@ -85,6 +85,45 @@ export default function App() {
   const today = localDateKey();
 
   useEffect(() => {
+    let mounted = true;
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (mounted) { setAuthUser(session?.user || null); setAuthReady(true); }
+    }).catch(() => { if (mounted) setAuthReady(true); });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (mounted) setAuthUser(session?.user || null);
+    });
+    return () => { mounted = false; subscription.unsubscribe(); };
+  }, []);
+
+  async function submitAuth() {
+    const email = authEmail.trim().toLowerCase();
+    if (!email || !/^\S+@\S+\.\S+$/.test(email)) { setAuthMessage("Enter a valid email address."); return; }
+    if (authMode !== "reset" && authPassword.length < 8) { setAuthMessage("Password must be at least 8 characters."); return; }
+    setAuthBusy(true); setAuthMessage("");
+    try {
+      if (authMode === "signup") {
+        const { data, error } = await supabase.auth.signUp({ email, password: authPassword });
+        if (error) throw error;
+        setAuthMessage(data.session ? "Account created. You are signed in." : "Account created. Check your email to verify it, then sign in.");
+        if (!data.session) setAuthMode("signin");
+      } else if (authMode === "reset") {
+        const { error } = await supabase.auth.resetPasswordForEmail(email);
+        if (error) throw error;
+        setAuthMessage("Password reset email sent if this address is registered.");
+      } else {
+        const { error } = await supabase.auth.signInWithPassword({ email, password: authPassword });
+        if (error) throw error;
+      }
+    } catch (error) { setAuthMessage(error?.message || "Authentication failed."); }
+    finally { setAuthBusy(false); }
+  }
+
+  async function signOut() {
+    const { error } = await supabase.auth.signOut();
+    if (error) Alert.alert("Sign out failed", error.message);
+  }
+
+  useEffect(() => {
     (async () => {
       try {
         const raw = await AsyncStorage.getItem(STORAGE_KEY);
@@ -248,7 +287,27 @@ export default function App() {
     ]);
   }
 
-  if (!loaded) return <SafeAreaView style={s.container}><Text style={s.title}>BrainGuard</Text><Text style={s.muted}>Loading your local profile…</Text></SafeAreaView>;
+  if (!loaded || !authReady) return <SafeAreaView style={s.container}><Text style={s.title}>BrainGuard</Text><Text style={s.muted}>Loading your profile…</Text></SafeAreaView>;
+
+  if (!authUser) return <SafeAreaView style={s.container}>
+    <StatusBar barStyle="light-content" />
+    <ScrollView contentContainerStyle={s.authWrap}>
+      <Text style={s.brand}>BRAINGUARD</Text>
+      <Text style={s.pageTitle}>{authMode === "signup" ? "Create your account" : authMode === "reset" ? "Reset password" : "Welcome back"}</Text>
+      <Text style={s.muted}>Sign in to sync your focus progress across devices.</Text>
+      <Card>
+        <Label>EMAIL</Label>
+        <TextInput value={authEmail} onChangeText={setAuthEmail} autoCapitalize="none" keyboardType="email-address" autoComplete="email" placeholder="you@example.com" placeholderTextColor="#788098" style={[s.input,{marginTop:8,marginBottom:14}]} />
+        {authMode !== "reset" && <><Label>PASSWORD</Label><TextInput value={authPassword} onChangeText={setAuthPassword} secureTextEntry autoComplete={authMode === "signup" ? "new-password" : "password"} placeholder="At least 8 characters" placeholderTextColor="#788098" style={[s.input,{marginTop:8}]} /></>}
+        <TouchableOpacity disabled={authBusy} style={s.primaryButtonWide} onPress={submitAuth}><Text style={s.buttonText}>{authBusy ? "PLEASE WAIT…" : authMode === "signup" ? "CREATE ACCOUNT" : authMode === "reset" ? "SEND RESET EMAIL" : "SIGN IN"}</Text></TouchableOpacity>
+        {!!authMessage && <Text style={s.muted}>{authMessage}</Text>}
+        {authMode === "signin" && <TouchableOpacity onPress={() => {setAuthMode("reset");setAuthMessage("");}}><Text style={s.authLink}>Forgot password?</Text></TouchableOpacity>}
+        <TouchableOpacity onPress={() => {setAuthMode(authMode === "signup" ? "signin" : "signup");setAuthMessage("");}}><Text style={s.authLink}>{authMode === "signup" ? "Already have an account? Sign in" : "New to BrainGuard? Create account"}</Text></TouchableOpacity>
+      </Card>
+      <Card><Text style={s.sectionTitle}>Google sign-in</Text><Text style={s.muted}>Google OAuth is not enabled yet. It needs Google Cloud OAuth credentials and redirect configuration.</Text></Card>
+      <Text style={s.footerText}>Your existing local profile remains stored on this device.</Text>
+    </ScrollView>
+  </SafeAreaView>;
 
   return <SafeAreaView style={s.container}>
     <StatusBar barStyle="light-content" />
@@ -338,7 +397,8 @@ export default function App() {
     </ScrollView>}
 
     {tab === "settings" && <ScrollView contentContainerStyle={s.content}>
-      <Text style={s.pageTitle}>Settings</Text>\n      <Card><Text style={s.sectionTitle}>Account</Text><Text style={s.muted}>{authUser?.email || "Signed in"}</Text><TouchableOpacity style={s.primaryButtonWide} onPress={signOut}><Text style={s.buttonText}>SIGN OUT</Text></TouchableOpacity></Card>
+      <Text style={s.pageTitle}>Settings</Text>
+      <Card><Text style={s.sectionTitle}>Account</Text><Text style={s.muted}>{authUser?.email || "Signed in"}</Text><TouchableOpacity style={s.primaryButtonWide} onPress={signOut}><Text style={s.buttonText}>SIGN OUT</Text></TouchableOpacity></Card>\n      <Card><Text style={s.sectionTitle}>Account</Text><Text style={s.muted}>{authUser?.email || "Signed in"}</Text><TouchableOpacity style={s.primaryButtonWide} onPress={signOut}><Text style={s.buttonText}>SIGN OUT</Text></TouchableOpacity></Card>
       <Card>
         <Text style={s.sectionTitle}>Daily scrolling goal</Text><Text style={s.muted}>Set your target in minutes (15–720).</Text>
         <View style={s.entryRow}>
@@ -398,7 +458,9 @@ export default function App() {
 }
 
 const s = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#090B14" },\n  authWrap: { flexGrow: 1, justifyContent: "center", padding: 20, gap: 16 },\n  authLink: { color: "#C6B9FF", textAlign: "center", fontWeight: "800", marginTop: 16 },
+  container: { flex: 1, backgroundColor: "#090B14" },
+  authWrap: { flexGrow: 1, justifyContent: "center", padding: 20, gap: 16 },
+  authLink: { color: "#C6B9FF", textAlign: "center", fontWeight: "800", marginTop: 16 },
   title: { color: "#F5F6FA", fontSize: 24, fontWeight: "900", padding: 20 },
   header: { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 16, flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   brand: { color: "#F5F6FA", fontSize: 18, fontWeight: "900", letterSpacing: 2 },
