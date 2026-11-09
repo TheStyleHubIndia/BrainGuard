@@ -385,7 +385,7 @@ public class BrainGuardSwipeAccessibilityService extends AccessibilityService {
     fs.mkdirSync(xmlDir, { recursive: true });
     fs.writeFileSync(path.join(xmlDir, "brainguard_accessibility_config.xml"), `<?xml version="1.0" encoding="utf-8"?>
 <accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
-    android:accessibilityEventTypes="typeViewScrolled|typeWindowContentChanged"
+    android:accessibilityEventTypes="typeViewScrolled"
     android:accessibilityFeedbackType="feedbackGeneric"
     android:notificationTimeout="250"
     android:canRetrieveWindowContent="false"
