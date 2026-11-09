@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { SafeAreaView, View, Text, TouchableOpacity, ScrollView, StyleSheet, TextInput, Alert, StatusBar, NativeModules, AppState } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { supabase } from "./src/lib/supabase";
 
 const STORAGE_KEY = "brainguard.v01.state";
 const usageNative = NativeModules.BrainGuardUsageStats;
@@ -60,6 +61,13 @@ function Label({ children }) { return <Text style={s.label}>{children}</Text>; }
 
 export default function App() {
   const [data, setData] = useState(defaults);
+  const [authReady, setAuthReady] = useState(false);
+  const [authUser, setAuthUser] = useState(null);
+  const [authMode, setAuthMode] = useState("signin");
+  const [authEmail, setAuthEmail] = useState("");
+  const [authPassword, setAuthPassword] = useState("");
+  const [authBusy, setAuthBusy] = useState(false);
+  const [authMessage, setAuthMessage] = useState("");
   const [loaded, setLoaded] = useState(false);
   const [tab, setTab] = useState("home");
   const [entry, setEntry] = useState("10");
@@ -123,6 +131,16 @@ export default function App() {
       ]);
       setSwipeAccessibility(!!enabled);
       setSwipeCounts(counts || { total: 0, apps: {} });
+      if (authUser?.id && counts?.apps) {
+        const rows = Object.entries(counts.apps).map(([app_key, count]) => ({
+          user_id: authUser.id, activity_date: localDateKey(), app_key,
+          forward_count: Number(count) || 0, tracking_source: "accessibility"
+        }));
+        if (rows.length) {
+          const { error } = await supabase.from("daily_swipe_counts").upsert(rows, { onConflict: "user_id,activity_date,app_key,tracking_source" });
+          if (error) console.warn("BrainGuard swipe cloud sync:", error.message);
+        }
+      }
       setOverlayPermission(!!overlay);
     } catch (error) {
       setOverlayError(error?.message || "Could not check swipe counter permissions.");
@@ -320,7 +338,7 @@ export default function App() {
     </ScrollView>}
 
     {tab === "settings" && <ScrollView contentContainerStyle={s.content}>
-      <Text style={s.pageTitle}>Settings</Text>
+      <Text style={s.pageTitle}>Settings</Text>\n      <Card><Text style={s.sectionTitle}>Account</Text><Text style={s.muted}>{authUser?.email || "Signed in"}</Text><TouchableOpacity style={s.primaryButtonWide} onPress={signOut}><Text style={s.buttonText}>SIGN OUT</Text></TouchableOpacity></Card>
       <Card>
         <Text style={s.sectionTitle}>Daily scrolling goal</Text><Text style={s.muted}>Set your target in minutes (15–720).</Text>
         <View style={s.entryRow}>
@@ -380,7 +398,7 @@ export default function App() {
 }
 
 const s = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#090B14" },
+  container: { flex: 1, backgroundColor: "#090B14" },\n  authWrap: { flexGrow: 1, justifyContent: "center", padding: 20, gap: 16 },\n  authLink: { color: "#C6B9FF", textAlign: "center", fontWeight: "800", marginTop: 16 },
   title: { color: "#F5F6FA", fontSize: 24, fontWeight: "900", padding: 20 },
   header: { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 16, flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   brand: { color: "#F5F6FA", fontSize: 18, fontWeight: "900", letterSpacing: 2 },
