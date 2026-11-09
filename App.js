@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { SafeAreaView, View, Text, TouchableOpacity, ScrollView, StyleSheet, TextInput, Alert, StatusBar, NativeModules, AppState } from "react-native";
+import { SafeAreaView, View, Text, TouchableOpacity, ScrollView, StyleSheet, TextInput, Alert, StatusBar, NativeModules, AppState, Linking } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { supabase } from "./src/lib/supabase";
 
@@ -89,7 +89,12 @@ export default function App() {
     accessibility: { title: "Swipe Counter access", time: "35 sec", steps: ["Tap Open Accessibility Settings.", "Open Downloaded apps / Installed services.", "Select BrainGuard swipe counter and switch it ON.", "If Android says Restricted setting: open App info → top-right ⋮ → Allow restricted settings, then retry.", "Return to BrainGuard; status refreshes."], note: "Android may block sideloaded apps until you manually allow restricted settings. BrainGuard cannot approve this permission itself.", action: "accessibility" },
     overlay: { title: "Floating widget", time: "20 sec", steps: ["Tap Open Overlay Settings.", "Find BrainGuard in the app list.", "Allow Display over other apps.", "Return to BrainGuard and enable the widget."], note: "Android controls this special permission.", action: "overlay" },
     notifications: { title: "Notifications", time: "15 sec", steps: ["Open Android Settings → Apps → BrainGuard → Notifications.", "Turn on Allow notifications.", "Return to BrainGuard."], note: "On Android 13+, notification permission must be granted separately.", action: null },
-    battery: { title: "Battery: unrestricted", time: "30 sec", steps: ["Open Android Settings → Apps → BrainGuard → Battery / App battery saver.", "Choose No restrictions / Unrestricted if available.", "On Xiaomi, also check Autostart if offered.", "Return to BrainGuard."], note: "Menu names vary by phone. This improves background reliability but cannot bypass Android Force stop.", action: "battery" }
+    battery: { title: "Battery: unrestricted", time: "30 sec", steps: ["Open Android Settings → Apps → BrainGuard → Battery / App battery saver.", "Choose No restrictions / Unrestricted if available.", "On Xiaomi, also check Autostart if offered.", "Return to BrainGuard."], note: "Menu names vary by phone. This improves background reliability but cannot bypass Android Force stop.", action: "battery" },
+    xiaomi: { title: "Xiaomi / Redmi / POCO (MIUI / HyperOS)", time: "60 sec", steps: ["Open App info → Battery saver → No restrictions.", "Open Security → Permissions → Autostart and enable BrainGuard if shown.", "Allow Display over other apps in Special app access.", "Enable BrainGuard under Accessibility → Downloaded apps.", "If Restricted setting appears, App info → ⋮ → Allow restricted settings, then retry."], note: "MIUI and HyperOS menus vary by version. Do not disable security protections globally.", action: "device" },
+    samsung: { title: "Samsung One UI", time: "45 sec", steps: ["Open Settings → Apps → BrainGuard → Battery.", "Select Unrestricted if available.", "Check Background usage limits; remove BrainGuard from Sleeping apps.", "Enable BrainGuard under Accessibility → Installed apps."], note: "Samsung may restrict background work independently of Android battery settings.", action: "device" },
+    vivo: { title: "Vivo / iQOO", time: "45 sec", steps: ["Open Settings → Apps → BrainGuard → Battery.", "Allow background power consumption if shown.", "Open iManager → App manager → Autostart and allow BrainGuard if available.", "Enable BrainGuard under Accessibility → Downloaded services."], note: "Exact labels differ by Funtouch OS version and region.", action: "device" },
+    realme: { title: "Realme / OPPO", time: "45 sec", steps: ["Open App info → Battery usage and allow background activity.", "Open Phone Manager / Security → Startup manager or Auto launch.", "Allow BrainGuard to auto-launch if available.", "Enable BrainGuard under Accessibility → Downloaded apps."], note: "Realme UI and ColorOS settings vary by model.", action: "device" },
+    motorola: { title: "Motorola", time: "35 sec", steps: ["Open Settings → Apps → BrainGuard → App battery usage.", "Allow background usage; choose Unrestricted if available.", "Enable BrainGuard under Accessibility → Downloaded apps.", "Allow Display over other apps in Special app access."], note: "Motorola menu labels vary by Android version.", action: "device" }
   };
   const today = localDateKey();
 
@@ -200,9 +205,7 @@ export default function App() {
       if (action === "usage") await usageNative.openUsageAccessSettings();
       else if (action === "accessibility") await usageNative.openAccessibilitySettings();
       else if (action === "overlay") await usageNative.openOverlaySettings();
-      else Alert.alert("Open Settings", action === "battery"
-        ? "Open Settings → Apps → BrainGuard → Battery, then choose No restrictions / Unrestricted if available."
-        : "Open Settings → Apps → BrainGuard → Notifications, then allow notifications.");
+      else await Linking.openSettings();
     } catch (error) { Alert.alert("Could not open Settings", error?.message || "Open the relevant Android Settings page manually."); }
   }
 
@@ -441,13 +444,18 @@ export default function App() {
       <Card>
       <Card>
         <Text style={s.sectionTitle}>Permission Help Center</Text>
-        <Text style={s.muted}>Step-by-step visual walkthroughs for Android permissions. Follow each step, open Settings, then return to refresh status.</Text>
+        <Text style={s.muted}>Original English setup walkthroughs for Android permissions and common phone brands. Open Settings from the final step, then return to refresh status.</Text>
         {[
           ["usage", "Usage Access", usageAccess],
           ["accessibility", "Accessibility / Swipe Counter", swipeAccessibility],
           ["overlay", "Display over other apps", overlayPermission],
           ["notifications", "Notifications", null],
-          ["battery", "Battery: No restrictions", null]
+          ["battery", "Battery: No restrictions", null],
+          ["xiaomi", "Xiaomi / Redmi / POCO", null],
+          ["samsung", "Samsung One UI", null],
+          ["vivo", "Vivo / iQOO", null],
+          ["realme", "Realme / OPPO", null],
+          ["motorola", "Motorola", null]
         ].map(([key, label, granted]) => (
           <TouchableOpacity key={key} style={s.guideRow} onPress={() => { setPermissionGuide(key); setGuideStep(0); }}>
             <View style={{ flex: 1 }}><Text style={s.appUsageName}>{label}</Text><Text style={s.muted}>Open guided walkthrough</Text></View>
