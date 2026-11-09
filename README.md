@@ -35,3 +35,16 @@ All minutes in v0.1 are manually entered. They are not measured from Instagram, 
 
 ## Next native Android milestone
 Implement an opt-in UsageStatsManager integration, explain Android Usage Access, and report per-app foreground time accurately. Do not represent app-level time as individual Reel/Short counts. Evaluate any blocking feature separately for compatibility, user consent and Google Play policy.
+
+
+## Build an Android APK with GitHub Actions
+
+A GitHub Actions workflow is included at `.github/workflows/android-build.yml`.
+
+1. Open the repository's **Actions** tab.
+2. Select **Build Android APK**.
+3. Tap **Run workflow** on the `main` branch.
+4. Wait for the workflow to finish successfully.
+5. Open the completed run and download the `BrainGuard-Android-APK` artifact.
+
+The artifact is a debug-signed release-variant APK intended for testing/sideloading, not a Play Store production release. GitHub-hosted runner availability and free-minute limits apply. The first build may fail if Expo/Android dependency versions need adjustment; inspect the workflow logs rather than assuming an APK was produced.
