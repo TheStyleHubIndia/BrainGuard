@@ -434,11 +434,12 @@ public class BrainGuardOverlayService extends Service {
   private WindowManager windowManager;
   private View bubble;
   private TextView counter;
+  private boolean expanded = false;
   private final Handler handler = new Handler();
   private int x, y;
   private final Runnable updater = new Runnable() {
     @Override public void run() {
-      if (counter != null) counter.setText("🧠  " + getTodaySwipeCount());
+      if (counter != null) counter.setText(expanded ? getExpandedCountText() : "🧠  " + getTodaySwipeCount());
       handler.postDelayed(this, 1200L);
     }
   };
@@ -449,8 +450,8 @@ public class BrainGuardOverlayService extends Service {
     Notification.Builder notificationBuilder = Build.VERSION.SDK_INT >= 26
       ? new Notification.Builder(this, CHANNEL) : new Notification.Builder(this);
     Notification notification = notificationBuilder
-      .setContentTitle("BrainGuard floating counter")
-      .setContentText("Your wellbeing counter is active")
+      .setContentTitle("Reel Counter")
+      .setContentText("Counting your Shorts and Reels scrolls")
       .setSmallIcon(android.R.drawable.ic_menu_info_details)
       .setOngoing(true)
       .build();
@@ -475,6 +476,20 @@ public class BrainGuardOverlayService extends Service {
         + prefs.getInt("count_" + day + "_facebook", 0)
         + prefs.getInt("count_" + day + "_snapchat", 0);
     } catch (Exception e) { return 0; }
+  }
+
+  private String getExpandedCountText() {
+    try {
+      String day = new java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).format(new java.util.Date());
+      android.content.SharedPreferences prefs = getSharedPreferences("brainguard_swipe_counts", MODE_PRIVATE);
+      int instagram = prefs.getInt("count_" + day + "_instagram", 0);
+      int youtube = prefs.getInt("count_" + day + "_youtube", 0);
+      int facebook = prefs.getInt("count_" + day + "_facebook", 0);
+      int snapchat = prefs.getInt("count_" + day + "_snapchat", 0);
+      return "TODAY  " + getTodaySwipeCount() + " scrolls\nInstagram  " + instagram
+        + "   •   YouTube  " + youtube + "\nFacebook  " + facebook + "   •   Snapchat  " + snapchat
+        + "\nTap to collapse";
+    } catch (Exception e) { return "TODAY  " + getTodaySwipeCount() + " scrolls\nTap to collapse"; }
   }
 
   private int getTodayMinutes() {
@@ -521,7 +536,7 @@ public class BrainGuardOverlayService extends Service {
     counter.setTextSize(16);
     counter.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
     counter.setGravity(Gravity.CENTER);
-    counter.setText(" " + getTodaySwipeCount() + " ");
+    counter.setText("🧠  " + getTodaySwipeCount());
     box.addView(counter);
 
     final WindowManager.LayoutParams params = new WindowManager.LayoutParams(
@@ -547,7 +562,17 @@ public class BrainGuardOverlayService extends Service {
           try { windowManager.updateViewLayout(box, params); } catch (Exception ignored) {}
           return true;
         }
-        return event.getAction() == MotionEvent.ACTION_UP;
+        if (event.getAction() == MotionEvent.ACTION_UP) {
+          float dx = Math.abs(event.getRawX() - downX);
+          float dy = Math.abs(event.getRawY() - downY);
+          if (dx < 12 && dy < 12) {
+            expanded = !expanded;
+            counter.setText(expanded ? getExpandedCountText() : "🧠  " + getTodaySwipeCount());
+            box.setPadding(expanded ? 18 : 13, expanded ? 14 : 9, expanded ? 18 : 13, expanded ? 14 : 9);
+          }
+          return true;
+        }
+        return true;
       }
     });
     windowManager.addView(box, params);
