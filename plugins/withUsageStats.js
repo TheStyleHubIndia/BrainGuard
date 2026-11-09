@@ -23,9 +23,12 @@ function withUsageStats(config) {
         manifest["uses-permission"].push({ $: { "android:name": name } });
       }
     });
-    manifest.service = manifest.service || [];
-    if (!manifest.service.some((s) => s.$["android:name"] === ".usage.BrainGuardSwipeAccessibilityService")) {
-      manifest.service.push({
+    // Android services belong inside <application>, never directly under <manifest>.
+    manifest.application = manifest.application || [{}];
+    const app = manifest.application[0];
+    app.service = app.service || [];
+    if (!app.service.some((s) => s.$["android:name"] === ".usage.BrainGuardSwipeAccessibilityService")) {
+      app.service.push({
         $: {
           "android:name": ".usage.BrainGuardSwipeAccessibilityService",
           "android:label": "BrainGuard swipe counter",
@@ -43,8 +46,8 @@ function withUsageStats(config) {
         }]
       });
     }
-    if (!manifest.service.some((s) => s.$["android:name"] === ".usage.BrainGuardOverlayService")) {
-      manifest.service.push({
+    if (!app.service.some((s) => s.$["android:name"] === ".usage.BrainGuardOverlayService")) {
+      app.service.push({
         $: {
           "android:name": ".usage.BrainGuardOverlayService",
           "android:exported": "false",
