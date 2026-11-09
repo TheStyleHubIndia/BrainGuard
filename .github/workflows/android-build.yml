@@ -10,6 +10,7 @@ on:
       - "app.json"
       - "package.json"
       - "babel.config.js"
+      - "plugins/**"
       - ".github/workflows/android-build.yml"
 
 permissions:
