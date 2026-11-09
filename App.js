@@ -234,7 +234,7 @@ export default function App() {
       if (state === "active") { refreshUsage(); refreshSwipeStatus(); }
     });
     return () => sub.remove();
-  }, []);
+  }, [authUser?.id]);
 
   const brain = useMemo(() => brainFor(data.minutes, data.goal), [data.minutes, data.goal]);
   const progress = Math.min(1, data.goal > 0 ? data.minutes / data.goal : 0);
