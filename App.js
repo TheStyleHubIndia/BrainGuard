@@ -121,6 +121,12 @@ export default function App() {
     if (!usageNative) { Alert.alert("Android APK required", "Floating widget requires the installed native BrainGuard APK."); return; }
     setOverlayError("");
     try {
+      const usageAllowed = await usageNative.hasUsageAccess();
+      if (!usageAllowed) {
+        Alert.alert("Usage Access required", "Enable Usage Access for BrainGuard first, then enable the floating counter.");
+        await requestUsageAccess();
+        return;
+      }
       const allowed = await usageNative.hasOverlayPermission();
       setOverlayPermission(!!allowed);
       if (!allowed) {
