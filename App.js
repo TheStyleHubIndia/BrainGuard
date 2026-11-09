@@ -82,6 +82,15 @@ export default function App() {
   const [swipeCounts, setSwipeCounts] = useState({ total: 0, apps: {} });
   const [floatingEnabled, setFloatingEnabled] = useState(false);
   const [overlayError, setOverlayError] = useState("");
+  const [permissionGuide, setPermissionGuide] = useState(null);
+  const [guideStep, setGuideStep] = useState(0);
+  const permissionGuides = {
+    usage: { title: "Usage Access", time: "20 sec", steps: ["Tap Open Settings below.", "Find BrainGuard in the Usage access list.", "Open it and turn on Permit usage access.", "Return to BrainGuard; status refreshes automatically."], note: "Reads total foreground time for supported apps, not messages or screen content.", action: "usage" },
+    accessibility: { title: "Swipe Counter access", time: "35 sec", steps: ["Tap Open Accessibility Settings.", "Open Downloaded apps / Installed services.", "Select BrainGuard swipe counter and switch it ON.", "If Android says Restricted setting: open App info → top-right ⋮ → Allow restricted settings, then retry.", "Return to BrainGuard; status refreshes."], note: "Android may block sideloaded apps until you manually allow restricted settings. BrainGuard cannot approve this permission itself.", action: "accessibility" },
+    overlay: { title: "Floating widget", time: "20 sec", steps: ["Tap Open Overlay Settings.", "Find BrainGuard in the app list.", "Allow Display over other apps.", "Return to BrainGuard and enable the widget."], note: "Android controls this special permission.", action: "overlay" },
+    notifications: { title: "Notifications", time: "15 sec", steps: ["Open Android Settings → Apps → BrainGuard → Notifications.", "Turn on Allow notifications.", "Return to BrainGuard."], note: "On Android 13+, notification permission must be granted separately.", action: null },
+    battery: { title: "Battery: unrestricted", time: "30 sec", steps: ["Open Android Settings → Apps → BrainGuard → Battery / App battery saver.", "Choose No restrictions / Unrestricted if available.", "On Xiaomi, also check Autostart if offered.", "Return to BrainGuard."], note: "Menu names vary by phone. This improves background reliability but cannot bypass Android Force stop.", action: "battery" }
+  };
   const today = localDateKey();
 
   useEffect(() => {
@@ -184,6 +193,17 @@ export default function App() {
     } catch (error) {
       setOverlayError(error?.message || "Could not check swipe counter permissions.");
     }
+  }
+
+  async function openPermissionGuideSettings(action) {
+    try {
+      if (action === "usage") await usageNative.openUsageAccessSettings();
+      else if (action === "accessibility") await usageNative.openAccessibilitySettings();
+      else if (action === "overlay") await usageNative.openOverlaySettings();
+      else Alert.alert("Open Settings", action === "battery"
+        ? "Open Settings → Apps → BrainGuard → Battery, then choose No restrictions / Unrestricted if available."
+        : "Open Settings → Apps → BrainGuard → Notifications, then allow notifications.");
+    } catch (error) { Alert.alert("Could not open Settings", error?.message || "Open the relevant Android Settings page manually."); }
   }
 
   async function enableSwipeTracking() {
@@ -419,6 +439,42 @@ export default function App() {
         </View>
       </Card>
       <Card>
+      <Card>
+        <Text style={s.sectionTitle}>Permission Help Center</Text>
+        <Text style={s.muted}>Step-by-step visual walkthroughs for Android permissions. Follow each step, open Settings, then return to refresh status.</Text>
+        {[
+          ["usage", "Usage Access", usageAccess],
+          ["accessibility", "Accessibility / Swipe Counter", swipeAccessibility],
+          ["overlay", "Display over other apps", overlayPermission],
+          ["notifications", "Notifications", null],
+          ["battery", "Battery: No restrictions", null]
+        ].map(([key, label, granted]) => (
+          <TouchableOpacity key={key} style={s.guideRow} onPress={() => { setPermissionGuide(key); setGuideStep(0); }}>
+            <View style={{ flex: 1 }}><Text style={s.appUsageName}>{label}</Text><Text style={s.muted}>Open guided walkthrough</Text></View>
+            <Text style={[s.guideStatus, granted === true ? { color: "#57D6A3" } : {}]}>{granted === true ? "ENABLED" : granted === false ? "NEEDED" : "GUIDE"}  ›</Text>
+          </TouchableOpacity>
+        ))}
+        {permissionGuide && (() => {
+          const guide = permissionGuides[permissionGuide];
+          return <View style={s.guidePanel}>
+            <Text style={s.guideEyebrow}>VISUAL WALKTHROUGH · {guide.time}</Text>
+            <Text style={s.sectionTitle}>{guide.title}</Text>
+            <View style={s.guideVisual}>
+              <Text style={s.guideVisualNumber}>{String(guideStep + 1).padStart(2, "0")}</Text>
+              <Text style={s.guideVisualText}>{guide.steps[guideStep]}</Text>
+            </View>
+            <View style={s.guideProgressRow}>{guide.steps.map((_, i) => <View key={i} style={[s.guideProgressDot, i <= guideStep && s.guideProgressDotActive]} />)}</View>
+            <Text style={s.muted}>{guide.note}</Text>
+            <View style={s.entryRow}>
+              <TouchableOpacity style={s.quickButton} onPress={() => setGuideStep(Math.max(0, guideStep - 1))} disabled={guideStep === 0}><Text style={s.quickText}>BACK</Text></TouchableOpacity>
+              {guideStep < guide.steps.length - 1
+                ? <TouchableOpacity style={s.primaryButton} onPress={() => setGuideStep(guideStep + 1)}><Text style={s.buttonText}>NEXT STEP</Text></TouchableOpacity>
+                : <TouchableOpacity style={s.primaryButton} onPress={() => openPermissionGuideSettings(guide.action)}><Text style={s.buttonText}>OPEN SETTINGS</Text></TouchableOpacity>}
+            </View>
+            <TouchableOpacity onPress={() => setPermissionGuide(null)}><Text style={s.authLink}>CLOSE GUIDE</Text></TouchableOpacity>
+          </View>;
+        })()}
+      </Card>
         <Text style={s.sectionTitle}>Automatic app usage tracking</Text><Text style={s.statusTag}>{usageAccess ? "USAGE ACCESS GRANTED" : "PERMISSION REQUIRED"}</Text>
         <Text style={s.muted}>Reads total foreground time for Instagram, YouTube, Facebook and Snapchat using Android UsageStatsManager. It does not count individual Reels or Shorts and is not a constant background tracker.</Text>
         <TouchableOpacity style={s.primaryButtonWide} onPress={usageAccess ? refreshUsage : requestUsageAccess}><Text style={s.buttonText}>{usageAccess ? "REFRESH APP USAGE" : "OPEN USAGE ACCESS SETTINGS"}</Text></TouchableOpacity>
@@ -519,6 +575,16 @@ const s = StyleSheet.create({
   achievementIcon: { fontSize: 25 },
   achievementTitle: { color: "#F5F6FA", fontWeight: "800" },
   statusTag: { color: "#F6C85F", fontSize: 10, fontWeight: "900", letterSpacing: 1, marginTop: 9, marginBottom: 5 },
+  guideRow: { flexDirection: "row", alignItems: "center", paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: "#252C40" },
+  guideStatus: { color: "#C6B9FF", fontSize: 10, fontWeight: "900" },
+  guidePanel: { backgroundColor: "#0D1120", borderRadius: 14, borderWidth: 1, borderColor: "#6553B8", padding: 14, marginTop: 14 },
+  guideEyebrow: { color: "#C6B9FF", fontSize: 9, fontWeight: "900", letterSpacing: 1.2, marginBottom: 9 },
+  guideVisual: { minHeight: 125, backgroundColor: "#25213D", borderRadius: 12, padding: 15, justifyContent: "center", marginTop: 8 },
+  guideVisualNumber: { color: "#A997FF", fontSize: 28, fontWeight: "900", marginBottom: 8 },
+  guideVisualText: { color: "#F5F6FA", fontSize: 15, lineHeight: 22, fontWeight: "700" },
+  guideProgressRow: { flexDirection: "row", gap: 6, marginTop: 12 },
+  guideProgressDot: { flex: 1, height: 4, borderRadius: 3, backgroundColor: "#343C54" },
+  guideProgressDotActive: { backgroundColor: "#8B72F6" },
   usageHeader: { flexDirection: "row", alignItems: "center", gap: 10 },
   refreshButton: { backgroundColor: "#25213D", paddingVertical: 9, paddingHorizontal: 12, borderRadius: 9 },
   refreshText: { color: "#C6B9FF", fontSize: 10, fontWeight: "900" },
