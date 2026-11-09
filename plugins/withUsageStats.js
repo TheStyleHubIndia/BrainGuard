@@ -24,6 +24,25 @@ function withUsageStats(config) {
       }
     });
     manifest.service = manifest.service || [];
+    if (!manifest.service.some((s) => s.$["android:name"] === ".usage.BrainGuardSwipeAccessibilityService")) {
+      manifest.service.push({
+        $: {
+          "android:name": ".usage.BrainGuardSwipeAccessibilityService",
+          "android:label": "BrainGuard swipe counter",
+          "android:permission": "android.permission.BIND_ACCESSIBILITY_SERVICE",
+          "android:exported": "true"
+        },
+        "intent-filter": [{
+          action: [{ $: { "android:name": "android.accessibilityservice.AccessibilityService" } }]
+        }],
+        "meta-data": [{
+          $: {
+            "android:name": "android.accessibilityservice",
+            "android:resource": "@xml/brainguard_accessibility_config"
+          }
+        }]
+      });
+    }
     if (!manifest.service.some((s) => s.$["android:name"] === ".usage.BrainGuardOverlayService")) {
       manifest.service.push({
         $: {
@@ -171,6 +190,10 @@ public class UsageStatsModule extends ReactContextBaseJavaModule {
   }
 
   @ReactMethod public void startFloatingWidget(Promise promise) {
+    if (!isSwipeServiceEnabled()) {
+      promise.reject("NO_ACCESSIBILITY_PERMISSION", "Enable BrainGuard swipe counter in Android Accessibility settings first.");
+      return;
+    }
     try {
       if (Build.VERSION.SDK_INT >= 23 && !Settings.canDrawOverlays(context)) {
         promise.reject("NO_OVERLAY_PERMISSION", "Grant Display over other apps permission first.");
@@ -191,6 +214,56 @@ public class UsageStatsModule extends ReactContextBaseJavaModule {
       promise.resolve(true);
     } catch (Exception e) {
       promise.reject("OVERLAY_STOP_ERROR", "Could not stop floating widget.", e);
+    }
+  }
+
+  private boolean isSwipeServiceEnabled() {
+    String enabled = android.provider.Settings.Secure.getString(
+      context.getContentResolver(), android.provider.Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES);
+    if (enabled == null) return false;
+    String target = new android.content.ComponentName(context,
+      BrainGuardSwipeAccessibilityService.class).flattenToString();
+    for (String item : enabled.split(":")) if (target.equalsIgnoreCase(item)) return true;
+    return false;
+  }
+
+  @ReactMethod public void hasSwipeAccessibilityEnabled(Promise promise) {
+    promise.resolve(isSwipeServiceEnabled());
+  }
+
+  @ReactMethod public void openAccessibilitySettings(Promise promise) {
+    try {
+      Intent intent = new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS);
+      intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+      context.startActivity(intent);
+      promise.resolve(true);
+    } catch (Exception e) {
+      promise.reject("ACCESSIBILITY_SETTINGS_ERROR", "Could not open Accessibility settings.", e);
+    }
+  }
+
+  @ReactMethod public void getTodaySwipeCounts(Promise promise) {
+    try {
+      java.text.SimpleDateFormat fmt = new java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US);
+      String day = fmt.format(new java.util.Date());
+      android.content.SharedPreferences prefs = context.getSharedPreferences("brainguard_swipe_counts", Context.MODE_PRIVATE);
+      WritableMap result = Arguments.createMap();
+      WritableMap apps = Arguments.createMap();
+      String[] labels = { "Instagram Reels", "YouTube Shorts", "Facebook Reels", "Snapchat Spotlight" };
+      String[] keys = { "instagram", "youtube", "facebook", "snapchat" };
+      int total = 0;
+      for (int i = 0; i < keys.length; i++) {
+        int count = prefs.getInt("count_" + day + "_" + keys[i], 0);
+        apps.putInt(keys[i], count);
+        total += count;
+      }
+      result.putInt("total", total);
+      result.putMap("apps", apps);
+      result.putString("date", day);
+      result.putBoolean("accessibilityEnabled", isSwipeServiceEnabled());
+      promise.resolve(result);
+    } catch (Exception e) {
+      promise.reject("SWIPE_COUNT_ERROR", "Could not read today's swipe counts.", e);
     }
   }
 
@@ -246,6 +319,74 @@ public class UsageStatsModule extends ReactContextBaseJavaModule {
 }
 `);
 
+    fs.writeFileSync(path.join(root, "BrainGuardSwipeAccessibilityService.java"), `package ${PACKAGE};
+
+import android.accessibilityservice.AccessibilityService;
+import android.view.accessibility.AccessibilityEvent;
+import android.content.SharedPreferences;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.Locale;
+import java.util.Map;
+
+public class BrainGuardSwipeAccessibilityService extends AccessibilityService {
+  private static final Map<String, String> TARGETS = new HashMap<>();
+  private final Map<String, Long> lastCounted = new HashMap<>();
+  static {
+    TARGETS.put("com.instagram.android", "instagram");
+    TARGETS.put("com.google.android.youtube", "youtube");
+    TARGETS.put("com.facebook.katana", "facebook");
+    TARGETS.put("com.snapchat.android", "snapchat");
+  }
+
+  @Override public void onAccessibilityEvent(AccessibilityEvent event) {
+    if (event == null) return;
+    CharSequence packageName = event.getPackageName();
+    if (packageName == null) return;
+    String key = TARGETS.get(packageName.toString());
+    if (key == null) return;
+
+    int type = event.getEventType();
+    boolean scrollEvent = type == AccessibilityEvent.TYPE_VIEW_SCROLLED;
+    boolean feedChange = type == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED &&
+      (event.getContentChangeTypes() & AccessibilityEvent.CONTENT_CHANGE_TYPE_SUBTREE) != 0;
+    if (!scrollEvent && !feedChange) return;
+
+    long now = event.getEventTime();
+    Long previous = lastCounted.get(key);
+    // Coalesce duplicate scroll/content-change events emitted for one swipe.
+    if (previous != null && now - previous < 1100L) return;
+    lastCounted.put(key, now);
+
+    String day = new SimpleDateFormat("yyyy-MM-dd", Locale.US).format(new Date());
+    SharedPreferences prefs = getSharedPreferences("brainguard_swipe_counts", MODE_PRIVATE);
+    String countKey = "count_" + day + "_" + key;
+    prefs.edit().putInt(countKey, prefs.getInt(countKey, 0) + 1).apply();
+  }
+
+  @Override public void onInterrupt() { }
+}
+`);
+
+    const xmlDir = path.join(config.modRequest.projectRoot, "android/app/src/main/res/xml");
+    fs.mkdirSync(xmlDir, { recursive: true });
+    fs.writeFileSync(path.join(xmlDir, "brainguard_accessibility_config.xml"), `<?xml version="1.0" encoding="utf-8"?>
+<accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
+    android:accessibilityEventTypes="typeViewScrolled|typeWindowContentChanged"
+    android:accessibilityFeedbackType="feedbackGeneric"
+    android:notificationTimeout="250"
+    android:canRetrieveWindowContent="false"
+    android:description="@string/brainguard_accessibility_description" />
+`);
+    const valuesDir = path.join(config.modRequest.projectRoot, "android/app/src/main/res/values");
+    fs.mkdirSync(valuesDir, { recursive: true });
+    const stringsPath = path.join(valuesDir, "brainguard_accessibility_strings.xml");
+    fs.writeFileSync(stringsPath, `<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="brainguard_accessibility_description">Counts estimated feed scroll events in selected social apps. Does not read screen text or capture content.</string>
+</resources>
+`);
     fs.writeFileSync(path.join(root, "BrainGuardOverlayService.java"), `package ${PACKAGE};
 
 import android.app.Notification;
@@ -281,8 +422,8 @@ public class BrainGuardOverlayService extends Service {
   private int x, y;
   private final Runnable updater = new Runnable() {
     @Override public void run() {
-      if (counter != null) counter.setText("🧠  " + getTodayMinutes() + "m");
-      handler.postDelayed(this, 60000L);
+      if (counter != null) counter.setText("🧠  " + getTodaySwipeCount());
+      handler.postDelayed(this, 1200L);
     }
   };
 
@@ -307,6 +448,17 @@ public class BrainGuardOverlayService extends Service {
       NotificationManager nm = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
       if (nm != null) nm.createNotificationChannel(channel);
     }
+  }
+
+  private int getTodaySwipeCount() {
+    try {
+      String day = new java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).format(new java.util.Date());
+      android.content.SharedPreferences prefs = getSharedPreferences("brainguard_swipe_counts", MODE_PRIVATE);
+      return prefs.getInt("count_" + day + "_instagram", 0)
+        + prefs.getInt("count_" + day + "_youtube", 0)
+        + prefs.getInt("count_" + day + "_facebook", 0)
+        + prefs.getInt("count_" + day + "_snapchat", 0);
+    } catch (Exception e) { return 0; }
   }
 
   private int getTodayMinutes() {
@@ -353,7 +505,7 @@ public class BrainGuardOverlayService extends Service {
     counter.setTextSize(16);
     counter.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
     counter.setGravity(Gravity.CENTER);
-    counter.setText(" " + getTodayMinutes() + "m ");
+    counter.setText(" " + getTodaySwipeCount() + " ");
     box.addView(counter);
 
     final WindowManager.LayoutParams params = new WindowManager.LayoutParams(
