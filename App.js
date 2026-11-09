@@ -69,6 +69,9 @@ export default function App() {
   const [usageWeek, setUsageWeek] = useState([]);
   const [usageLoading, setUsageLoading] = useState(false);
   const [usageError, setUsageError] = useState("");
+  const [overlayPermission, setOverlayPermission] = useState(false);
+  const [floatingEnabled, setFloatingEnabled] = useState(false);
+  const [overlayError, setOverlayError] = useState("");
   const today = localDateKey();
 
   useEffect(() => {
@@ -108,9 +111,40 @@ export default function App() {
     catch (error) { Alert.alert("Settings error", error?.message || "Open Android Settings > Special app access > Usage access."); }
   }
 
+  async function refreshOverlayStatus() {
+    if (!usageNative) return;
+    try { setOverlayPermission(!!(await usageNative.hasOverlayPermission())); }
+    catch (error) { setOverlayError(error?.message || "Could not check overlay permission."); }
+  }
+
+  async function enableFloatingWidget() {
+    if (!usageNative) { Alert.alert("Android APK required", "Floating widget requires the installed native BrainGuard APK."); return; }
+    setOverlayError("");
+    try {
+      const allowed = await usageNative.hasOverlayPermission();
+      setOverlayPermission(!!allowed);
+      if (!allowed) {
+        await usageNative.openOverlaySettings();
+        setOverlayError("Allow Display over other apps for BrainGuard, return here, then tap Enable again.");
+        return;
+      }
+      await usageNative.startFloatingWidget();
+      setFloatingEnabled(true);
+    } catch (error) { setOverlayError(error?.message || "Could not enable floating widget."); }
+  }
+
+  async function disableFloatingWidget() {
+    if (!usageNative) return;
+    try { await usageNative.stopFloatingWidget(); setFloatingEnabled(false); setOverlayError(""); }
+    catch (error) { setOverlayError(error?.message || "Could not stop floating widget."); }
+  }
+
   useEffect(() => {
     refreshUsage();
-    const sub = AppState.addEventListener("change", state => { if (state === "active") refreshUsage(); });
+    refreshOverlayStatus();
+    const sub = AppState.addEventListener("change", state => {
+      if (state === "active") { refreshUsage(); refreshOverlayStatus(); }
+    });
     return () => sub.remove();
   }, []);
 
@@ -270,6 +304,16 @@ export default function App() {
         {!!usageError && <Text style={s.errorText}>{usageError}</Text>}
       </Card>
       <Card><Text style={s.sectionTitle}>Last 7 days — tracked apps</Text>{usageWeek.length ? usageWeek.map(item => <View key={item.packageName} style={s.appUsageRow}><Text style={s.appUsageName}>{item.app}</Text><Text style={s.appUsageTime}>{Math.round(item.minutes || 0)} min</Text></View>) : <Text style={s.muted}>Grant Usage Access and refresh to load the report.</Text>}</Card>
+      <Card>
+        <Text style={s.sectionTitle}>Floating Brain Widget</Text>
+        <Text style={s.muted}>Show a draggable brain counter over other apps, similar to the floating counter in your reference screenshot. It displays combined daily foreground time for Instagram, YouTube, Facebook and Snapchat, refreshed every minute.</Text>
+        <Text style={s.statusTag}>{floatingEnabled ? "FLOATING WIDGET ENABLED" : overlayPermission ? "OVERLAY PERMISSION GRANTED" : "OVERLAY PERMISSION REQUIRED"}</Text>
+        <TouchableOpacity style={s.primaryButtonWide} onPress={floatingEnabled ? disableFloatingWidget : enableFloatingWidget}>
+          <Text style={s.buttonText}>{floatingEnabled ? "TURN OFF FLOATING WIDGET" : overlayPermission ? "ENABLE FLOATING WIDGET" : "GRANT OVERLAY PERMISSION"}</Text>
+        </TouchableOpacity>
+        {!!overlayError && <Text style={s.errorText}>{overlayError}</Text>}
+        <Text style={s.muted}>Android shows a persistent notification while the floating widget service is active. You can turn it off here.</Text>
+      </Card>
       <Card>
         <Text style={s.sectionTitle}>App blocker</Text>
         <Text style={s.muted}>Not active in this prototype. System-level blocking needs a separately implemented Android service, user opt-in, and compatibility and policy testing.</Text>
