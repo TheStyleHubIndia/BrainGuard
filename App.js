@@ -268,6 +268,18 @@ export default function App() {
       };
     });
     setEntry("10");
+    if (authUser?.id) {
+      const endedAt = new Date();
+      supabase.from("focus_sessions").insert({
+        user_id: authUser.id,
+        started_at: new Date(endedAt.getTime() - mins * 60000).toISOString(),
+        ended_at: endedAt.toISOString(),
+        duration_minutes: mins,
+        session_type: "manual"
+      }).then(({ error }) => {
+        if (error) console.warn("BrainGuard session cloud sync:", error.message);
+      });
+    }
   }
 
   function saveGoal() {
