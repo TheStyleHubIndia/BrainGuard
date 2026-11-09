@@ -1,8 +1,9 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { SafeAreaView, View, Text, TouchableOpacity, ScrollView, StyleSheet, TextInput, Alert, StatusBar } from "react-native";
+import { SafeAreaView, View, Text, TouchableOpacity, ScrollView, StyleSheet, TextInput, Alert, StatusBar, NativeModules, AppState } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const STORAGE_KEY = "brainguard.v01.state";
+const usageNative = NativeModules.BrainGuardUsageStats;
 const localDateKey = (date = new Date()) => {
   const y = date.getFullYear();
   const m = String(date.getMonth() + 1).padStart(2, "0");
@@ -63,6 +64,11 @@ export default function App() {
   const [tab, setTab] = useState("home");
   const [entry, setEntry] = useState("10");
   const [goalEntry, setGoalEntry] = useState("90");
+  const [usageAccess, setUsageAccess] = useState(false);
+  const [usageToday, setUsageToday] = useState([]);
+  const [usageWeek, setUsageWeek] = useState([]);
+  const [usageLoading, setUsageLoading] = useState(false);
+  const [usageError, setUsageError] = useState("");
   const today = localDateKey();
 
   useEffect(() => {
@@ -83,6 +89,30 @@ export default function App() {
   useEffect(() => {
     if (loaded) AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(data)).catch(() => {});
   }, [data, loaded]);
+
+  async function refreshUsage() {
+    if (!usageNative) { setUsageError("Automatic tracking requires the Android APK, not Expo Go or web preview."); return; }
+    setUsageLoading(true); setUsageError("");
+    try {
+      const allowed = await usageNative.hasUsageAccess(); setUsageAccess(!!allowed);
+      if (!allowed) { setUsageToday([]); setUsageWeek([]); return; }
+      const results = await Promise.all([usageNative.getUsageStats(1), usageNative.getUsageStats(7)]);
+      setUsageToday(results[0].apps || []); setUsageWeek(results[1].apps || []);
+    } catch (error) { setUsageError(error?.message || "Could not read app usage."); }
+    finally { setUsageLoading(false); }
+  }
+
+  async function requestUsageAccess() {
+    if (!usageNative) { Alert.alert("Android APK required", "Install the BrainGuard APK to use native app tracking."); return; }
+    try { await usageNative.openUsageAccessSettings(); }
+    catch (error) { Alert.alert("Settings error", error?.message || "Open Android Settings > Special app access > Usage access."); }
+  }
+
+  useEffect(() => {
+    refreshUsage();
+    const sub = AppState.addEventListener("change", state => { if (state === "active") refreshUsage(); });
+    return () => sub.remove();
+  }, []);
 
   const brain = useMemo(() => brainFor(data.minutes, data.goal), [data.minutes, data.goal]);
   const progress = Math.min(1, data.goal > 0 ? data.minutes / data.goal : 0);
@@ -164,6 +194,15 @@ export default function App() {
         <Card style={s.stat}><Label>STREAK</Label><Text style={s.statNumber}>{data.streak}<Text style={s.unit}>d</Text></Text></Card>
       </View>
       <Card>
+        <View style={s.usageHeader}>
+          <View style={{ flex: 1 }}><Text style={s.sectionTitle}>Tracked social apps</Text><Text style={s.muted}>Android foreground time. Refreshes when BrainGuard opens or returns to foreground.</Text></View>
+          <TouchableOpacity style={s.refreshButton} onPress={refreshUsage}><Text style={s.refreshText}>{usageLoading ? "..." : "REFRESH"}</Text></TouchableOpacity>
+        </View>
+        {!usageAccess ? <View><Text style={s.muted}>{usageError || "Grant Usage Access to read Instagram, YouTube, Facebook and Snapchat usage."}</Text><TouchableOpacity style={s.primaryButtonWide} onPress={requestUsageAccess}><Text style={s.buttonText}>ENABLE USAGE TRACKING</Text></TouchableOpacity></View> : usageToday.map(item => <View key={item.packageName} style={s.appUsageRow}><Text style={s.appUsageName}>{item.app}</Text><Text style={s.appUsageTime}>{Math.round(item.minutes || 0)} min</Text></View>)}
+        {!!usageError && <Text style={s.errorText}>{usageError}</Text>}
+        <Text style={s.muted}>Last 7 days combined: {usageWeek.reduce((sum, item) => sum + (item.minutes || 0), 0)} minutes.</Text>
+      </Card>
+      <Card>
         <Text style={s.sectionTitle}>Log a scrolling session</Text>
         <Text style={s.muted}>Manual entry only — this prototype does not automatically track phone usage.</Text>
         <View style={s.entryRow}>
@@ -225,9 +264,12 @@ export default function App() {
         </View>
       </Card>
       <Card>
-        <Text style={s.sectionTitle}>Tracking status</Text><Text style={s.statusTag}>MANUAL PROTOTYPE MODE</Text>
-        <Text style={s.muted}>This build does not read other apps or detect Reels/Shorts. Real Android usage tracking needs native integration and explicit Usage Access permission.</Text>
+        <Text style={s.sectionTitle}>Automatic app usage tracking</Text><Text style={s.statusTag}>{usageAccess ? "USAGE ACCESS GRANTED" : "PERMISSION REQUIRED"}</Text>
+        <Text style={s.muted}>Reads total foreground time for Instagram, YouTube, Facebook and Snapchat using Android UsageStatsManager. It does not count individual Reels or Shorts and is not a constant background tracker.</Text>
+        <TouchableOpacity style={s.primaryButtonWide} onPress={usageAccess ? refreshUsage : requestUsageAccess}><Text style={s.buttonText}>{usageAccess ? "REFRESH APP USAGE" : "OPEN USAGE ACCESS SETTINGS"}</Text></TouchableOpacity>
+        {!!usageError && <Text style={s.errorText}>{usageError}</Text>}
       </Card>
+      <Card><Text style={s.sectionTitle}>Last 7 days — tracked apps</Text>{usageWeek.length ? usageWeek.map(item => <View key={item.packageName} style={s.appUsageRow}><Text style={s.appUsageName}>{item.app}</Text><Text style={s.appUsageTime}>{Math.round(item.minutes || 0)} min</Text></View>) : <Text style={s.muted}>Grant Usage Access and refresh to load the report.</Text>}</Card>
       <Card>
         <Text style={s.sectionTitle}>App blocker</Text>
         <Text style={s.muted}>Not active in this prototype. System-level blocking needs a separately implemented Android service, user opt-in, and compatibility and policy testing.</Text>
@@ -289,6 +331,14 @@ const s = StyleSheet.create({
   achievementIcon: { fontSize: 25 },
   achievementTitle: { color: "#F5F6FA", fontWeight: "800" },
   statusTag: { color: "#F6C85F", fontSize: 10, fontWeight: "900", letterSpacing: 1, marginTop: 9, marginBottom: 5 },
+  usageHeader: { flexDirection: "row", alignItems: "center", gap: 10 },
+  refreshButton: { backgroundColor: "#25213D", paddingVertical: 9, paddingHorizontal: 12, borderRadius: 9 },
+  refreshText: { color: "#C6B9FF", fontSize: 10, fontWeight: "900" },
+  primaryButtonWide: { backgroundColor: "#8B72F6", borderRadius: 12, justifyContent: "center", alignItems: "center", padding: 14, marginTop: 12 },
+  appUsageRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: "#252C40" },
+  appUsageName: { color: "#E6E8F0", fontWeight: "700" },
+  appUsageTime: { color: "#C6B9FF", fontWeight: "900" },
+  errorText: { color: "#FF8498", fontSize: 12, marginTop: 8 },
   disabledButton: { backgroundColor: "#303548", padding: 13, borderRadius: 11, alignItems: "center", marginTop: 14, opacity: .65 },
   resetButton: { borderColor: "#713848", borderWidth: 1, padding: 14, borderRadius: 12, alignItems: "center" },
   resetText: { color: "#FF8498", fontWeight: "900", fontSize: 11 },
