@@ -34,7 +34,7 @@ This is an Expo React Native prototype. It is **not yet a native usage-tracking 
 Run `npm install`, then `npx expo start`.
 
 ## Data and accuracy
-Manual session entries are stored locally. Native app usage totals are read from Android UsageStatsManager after the user grants Usage Access. These totals are separate from manual entries. No backend, analytics, account, or cloud sync is configured.
+Manual session entries are stored locally. Native app usage totals are read from Android UsageStatsManager after the user grants Usage Access. Estimated Reels/Shorts swipe counts are collected separately through the opt-in AccessibilityService and stored locally by app and local date. The accessibility service does not retrieve window content or screen text. No backend, analytics, account, or cloud sync is configured.
 
 ## Next native Android milestone
 Implement an opt-in UsageStatsManager integration, explain Android Usage Access, and report per-app foreground time accurately. Do not represent app-level time as individual Reel/Short counts. Evaluate any blocking feature separately for compatibility, user consent and Google Play policy.
