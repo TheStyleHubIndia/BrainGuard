@@ -86,6 +86,7 @@ export default function App() {
   const [overlayPermission, setOverlayPermission] = useState(false);
   const [notificationPermission, setNotificationPermission] = useState(Platform.OS !== "android" || Number(Platform.Version) < 33);
   const [permissionPromptShown, setPermissionPromptShown] = useState(false);
+  const [permissionCheckComplete, setPermissionCheckComplete] = useState(false);
   const [swipeAccessibility, setSwipeAccessibility] = useState(false);
   const [swipeCounts, setSwipeCounts] = useState({ total: 0, apps: {} });
   const [floatingEnabled, setFloatingEnabled] = useState(false);
@@ -298,29 +299,29 @@ export default function App() {
   }
 
   useEffect(() => {
-    refreshUsage();
-    refreshSwipeStatus();
-    refreshNotificationPermission();
+    let active = true;
+    const refreshAllPermissions = async () => {
+      await Promise.all([refreshUsage(), refreshSwipeStatus(), refreshNotificationPermission()]);
+      if (active) setPermissionCheckComplete(true);
+    };
+    refreshAllPermissions();
     const sub = AppState.addEventListener("change", state => {
-      if (state === "active") { refreshUsage(); refreshSwipeStatus(); refreshNotificationPermission(); }
+      if (state === "active") refreshAllPermissions();
     });
-    return () => sub.remove();
+    return () => { active = false; sub.remove(); };
   }, [authUser?.id]);
 
   useEffect(() => {
-    if (!authUser || !loaded || permissionPromptShown) return;
+    if (!authUser || !loaded || !permissionCheckComplete || permissionPromptShown) return;
     setPermissionPromptShown(true);
-    if (!usageAccess || !swipeAccessibility || !overlayPermission) {
+    if (!usageAccess || !swipeAccessibility || !overlayPermission || !notificationPermission) {
       Alert.alert(
-        "Set up your Reel Counter",
-        "Allow Usage Access, Swipe Counter Accessibility and Display over other apps to enable automatic tracking. Android will ask you to approve each permission in Settings.",
-        [
-          { text: "Later", style: "cancel" },
-          { text: "Set up now", onPress: () => requestUsageAccess() }
-        ]
+        "Finish Reel Counter setup",
+        "BrainGuard needs your approval for the permissions you choose to enable automatic usage tracking, scroll estimates and the floating counter. You can review each permission on the Home screen.",
+        [{ text: "Review permissions", onPress: () => setTab("home") }, { text: "Later", style: "cancel" }]
       );
     }
-  }, [authUser?.id, loaded, permissionPromptShown]);
+  }, [authUser?.id, loaded, permissionCheckComplete, permissionPromptShown, usageAccess, swipeAccessibility, overlayPermission, notificationPermission]);
 
   const brain = useMemo(() => brainFor(data.minutes, data.goal), [data.minutes, data.goal]);
   const progress = Math.min(1, data.goal > 0 ? data.minutes / data.goal : 0);
