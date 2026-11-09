@@ -10,20 +10,28 @@
 - Seven-day local history
 - AsyncStorage persistence
 - Device-local date keys
+- Native Android UsageStatsManager bridge for Instagram, YouTube, Facebook and Snapchat
+- Android Usage Access permission flow
+- App-wise usage display for today and aggregate last seven days
+- Refresh when the app opens or returns to foreground
 
 ## Not implemented or verified
-- Real device usage tracking
-- Per-Reel / per-Short detection
+- Individual Reel / Short detection
+- Continuous background monitoring service
 - App blocking
-- OS notifications
-- APK build
-- Android device testing
+- OS notifications / focus reminders
+- Successful APK build for the native integration (pending CI)
+- Android device testing and OEM-specific verification
 
-## v0.1 acceptance checklist
-- [ ] Open in Expo Go
-- [ ] Add a session and verify minutes update
-- [ ] Reopen app and verify local data persists
-- [ ] Change daily goal and verify progress/state changes
-- [ ] Earn first-session achievement
-- [ ] Verify streak increments at most once per local day
+## Important behavior
+- Native usage totals are separate from manually logged sessions.
+- Usage reports require the user to grant Android Usage Access.
+- Expo Go and web preview cannot load the custom native module; use the generated Android APK.
+- Android UsageStatsManager reports app foreground time, not individual content consumption.
+
+## Acceptance checklist
+- [ ] Android build passes
+- [ ] Grant Usage Access from BrainGuard settings
+- [ ] Confirm Instagram / YouTube / Facebook / Snapchat totals against Android Settings
+- [ ] Confirm app refreshes after returning from another app
 - [ ] Test on target Android device
