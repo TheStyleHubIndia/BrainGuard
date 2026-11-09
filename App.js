@@ -9,7 +9,43 @@ const localDateKey = (date = new Date()) => {
   const d = String(date.getDate()).padStart(2, "0");
   return y + "-" + m + "-" + d;
 };
-const defaults = { minutes: 0, sessions: 0, goal: 90, xp: 0, streak: 0, lastActiveDate: null, history: {}, achievements: [] };
+const defaults = { minutes: 0, sessions: 0, goal: 90, xp: 0, streak: 0, lastActiveDate: null, history: {}, sessionsByDay: {}, achievements: [] };
+
+function normalizeStoredData(value, today) {
+  const source = value && typeof value === "object" && !Array.isArray(value) ? value : {};
+  const safeNumber = (input, fallback, min, max) => {
+    const n = Number(input);
+    return Number.isFinite(n) ? Math.min(max, Math.max(min, Math.floor(n))) : fallback;
+  };
+  const validHistory = {};
+  if (source.history && typeof source.history === "object" && !Array.isArray(source.history)) {
+    Object.entries(source.history).forEach(([key, value]) => {
+      if (/^\d{4}-\d{2}-\d{2}$/.test(key)) validHistory[key] = safeNumber(value, 0, 0, 1440);
+    });
+  }
+  const validSessions = {};
+  if (source.sessionsByDay && typeof source.sessionsByDay === "object" && !Array.isArray(source.sessionsByDay)) {
+    Object.entries(source.sessionsByDay).forEach(([key, value]) => {
+      if (/^\d{4}-\d{2}-\d{2}$/.test(key)) validSessions[key] = safeNumber(value, 0, 0, 1440);
+    });
+  }
+  const lastActiveDate = typeof source.lastActiveDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(source.lastActiveDate) ? source.lastActiveDate : null;
+  if (lastActiveDate === today && validSessions[today] === undefined) {
+    validSessions[today] = safeNumber(source.sessions, 0, 0, 1440);
+  }
+  return {
+    ...defaults,
+    minutes: validHistory[today] || 0,
+    sessions: validSessions[today] || 0,
+    goal: safeNumber(source.goal, 90, 15, 720),
+    xp: safeNumber(source.xp, 0, 0, 100000000),
+    streak: safeNumber(source.streak, 0, 0, 1000000),
+    lastActiveDate,
+    history: validHistory,
+    sessionsByDay: validSessions,
+    achievements: Array.isArray(source.achievements) ? [...new Set(source.achievements.filter(x => typeof x === "string"))] : []
+  };
+}
 
 function brainFor(minutes, goal) {
   const ratio = goal > 0 ? minutes / goal : 0;
@@ -34,7 +70,7 @@ export default function App() {
       try {
         const raw = await AsyncStorage.getItem(STORAGE_KEY);
         if (raw) {
-          const saved = { ...defaults, ...JSON.parse(raw) };
+          const saved = normalizeStoredData(JSON.parse(raw), today);
           setData(saved);
           setGoalEntry(String(saved.goal));
         }
@@ -58,7 +94,13 @@ export default function App() {
       Alert.alert("Invalid amount", "Enter a whole number between 1 and 600 minutes.");
       return;
     }
-    const yesterday = localDateKey(new Date(Date.now() - 86400000));
+    if (data.minutes + mins > 1440) {
+      Alert.alert("Daily limit reached", "A day cannot contain more than 1,440 logged minutes.");
+      return;
+    }
+    const yesterdayDate = new Date();
+    yesterdayDate.setDate(yesterdayDate.getDate() - 1);
+    const yesterday = localDateKey(yesterdayDate);
     setData(prev => {
       const sessions = prev.sessions + 1;
       const xp = prev.xp + Math.max(5, Math.round(mins / 2));
@@ -68,7 +110,9 @@ export default function App() {
       if (xp >= 100 && !achievements.includes("100-xp")) achievements.push("100-xp");
       return {
         ...prev, minutes: prev.minutes + mins, sessions, xp, streak, lastActiveDate: today,
-        history: { ...prev.history, [today]: (prev.history[today] || 0) + mins }, achievements
+        history: { ...prev.history, [today]: (prev.history[today] || 0) + mins },
+        sessionsByDay: { ...prev.sessionsByDay, [today]: (prev.sessionsByDay[today] || 0) + 1 },
+        achievements
       };
     });
     setEntry("10");
@@ -87,7 +131,7 @@ export default function App() {
   function resetToday() {
     Alert.alert("Reset today's demo data?", "This clears today's minutes and sessions, but keeps XP and streak history.", [
       { text: "Cancel", style: "cancel" },
-      { text: "Reset", style: "destructive", onPress: () => setData(p => ({ ...p, minutes: 0, sessions: 0, history: { ...p.history, [today]: 0 } })) }
+      { text: "Reset", style: "destructive", onPress: () => setData(p => ({ ...p, minutes: 0, sessions: 0, history: { ...p.history, [today]: 0 }, sessionsByDay: { ...p.sessionsByDay, [today]: 0 } })) }
     ]);
   }
 
