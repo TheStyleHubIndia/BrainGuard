@@ -356,7 +356,8 @@ export default function App() {
       </TouchableOpacity>
     )}</View>
 
-    {tab === "home" && <ScrollView contentContainerStyle={s.content}>
+    {tab === "home" && <ScrollView contentContainerStyle={s.content} showsVerticalScrollIndicator={false}>
+      <View style={s.screenIntro}><Text style={s.pageEyebrow}>YOUR DAILY RESET</Text><Text style={s.pageTitle}>Today at a glance</Text><Text style={s.muted}>Small choices. Better attention.</Text></View>
       <Card style={s.brainCard}>
         <Label>YOUR BRAIN RIGHT NOW</Label>
         <Text style={s.brainFace}>{brain.face}</Text>
@@ -398,8 +399,8 @@ export default function App() {
       </Card>
     </ScrollView>}
 
-    {tab === "progress" && <ScrollView contentContainerStyle={s.content}>
-      <Text style={s.pageTitle}>Your progress</Text>
+    {tab === "progress" && <ScrollView contentContainerStyle={s.content} showsVerticalScrollIndicator={false}>
+      <View style={s.screenIntro}><Text style={s.pageEyebrow}>CONSISTENCY OVER PERFECTION</Text><Text style={s.pageTitle}>Your progress</Text><Text style={s.muted}>Review your recent habits and milestones.</Text></View>
       <Card>
         <Text style={s.sectionTitle}>Last 7 days</Text>
         {Array.from({ length: 7 }, (_, i) => {
@@ -431,8 +432,8 @@ export default function App() {
       <Card><Text style={s.sectionTitle}>Streak rules</Text><Text style={s.muted}>A day counts when you log at least one session. Multiple sessions on the same day only count once toward the streak.</Text></Card>
     </ScrollView>}
 
-    {tab === "settings" && <ScrollView contentContainerStyle={s.content}>
-      <Text style={s.pageTitle}>Settings</Text>
+    {tab === "settings" && <ScrollView contentContainerStyle={s.content} showsVerticalScrollIndicator={false}>
+      <View style={s.screenIntro}><Text style={s.pageEyebrow}>MAKE IT WORK FOR YOU</Text><Text style={s.pageTitle}>Settings</Text><Text style={s.muted}>Permissions, tracking and account controls.</Text></View>
       <Card><Text style={s.sectionTitle}>Account</Text><Text style={s.muted}>{authUser?.email || "Signed in"}</Text><TouchableOpacity style={s.primaryButtonWide} onPress={signOut}><Text style={s.buttonText}>SIGN OUT</Text></TouchableOpacity></Card>
       <Card>
         <Text style={s.sectionTitle}>Daily scrolling goal</Text><Text style={s.muted}>Set your target in minutes (15–720).</Text>
@@ -441,7 +442,6 @@ export default function App() {
           <TouchableOpacity style={s.primaryButton} onPress={saveGoal}><Text style={s.buttonText}>SAVE GOAL</Text></TouchableOpacity>
         </View>
       </Card>
-      <Card>
       <Card>
         <Text style={s.sectionTitle}>Permission Help Center</Text>
         <Text style={s.muted}>Original English setup walkthroughs for Android permissions and common phone brands. Open Settings from the final step, then return to refresh status.</Text>
@@ -482,7 +482,6 @@ export default function App() {
             <TouchableOpacity onPress={() => setPermissionGuide(null)}><Text style={s.authLink}>CLOSE GUIDE</Text></TouchableOpacity>
           </View>;
         })()}
-      </Card>
         <Text style={s.sectionTitle}>Automatic app usage tracking</Text><Text style={s.statusTag}>{usageAccess ? "USAGE ACCESS GRANTED" : "PERMISSION REQUIRED"}</Text>
         <Text style={s.muted}>Reads total foreground time for Instagram, YouTube, Facebook and Snapchat using Android UsageStatsManager. It does not count individual Reels or Shorts and is not a constant background tracker.</Text>
         <TouchableOpacity style={s.primaryButtonWide} onPress={usageAccess ? refreshUsage : requestUsageAccess}><Text style={s.buttonText}>{usageAccess ? "REFRESH APP USAGE" : "OPEN USAGE ACCESS SETTINGS"}</Text></TouchableOpacity>
@@ -534,50 +533,52 @@ export default function App() {
 }
 
 const s = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#090B14" },
+  container: { flex: 1, backgroundColor: "#080D12" },
   authWrap: { flexGrow: 1, justifyContent: "center", padding: 20, gap: 16 },
   authLink: { color: "#C6B9FF", textAlign: "center", fontWeight: "800", marginTop: 16 },
   title: { color: "#F5F6FA", fontSize: 24, fontWeight: "900", padding: 20 },
-  header: { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 16, flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  brand: { color: "#F5F6FA", fontSize: 18, fontWeight: "900", letterSpacing: 2 },
-  muted: { color: "#969DB2", fontSize: 13, lineHeight: 19, marginTop: 5 },
-  levelPill: { backgroundColor: "#25213D", borderColor: "#6553B8", borderWidth: 1, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 20 },
-  levelText: { color: "#C6B9FF", fontWeight: "800", fontSize: 11 },
-  tabs: { flexDirection: "row", marginHorizontal: 20, padding: 4, backgroundColor: "#141827", borderRadius: 13, marginBottom: 8 },
+  header: { paddingHorizontal: 22, paddingTop: 16, paddingBottom: 14, flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  brand: { color: "#F4F8F5", fontSize: 17, fontWeight: "900", letterSpacing: 2.4 },
+  muted: { color: "#94A49D", fontSize: 13, lineHeight: 20, marginTop: 5 },
+  levelPill: { backgroundColor: "#13251F", borderColor: "#285B46", borderWidth: 1, paddingVertical: 9, paddingHorizontal: 13, borderRadius: 20 },
+  levelText: { color: "#8CE0B4", fontWeight: "900", fontSize: 11, letterSpacing: .5 },
+  tabs: { flexDirection: "row", marginHorizontal: 20, padding: 5, backgroundColor: "#111B18", borderRadius: 16, marginBottom: 8, borderWidth: 1, borderColor: "#1E3029" },
   tab: { flex: 1, paddingVertical: 10, alignItems: "center", borderRadius: 10 },
-  tabActive: { backgroundColor: "#353052" },
-  tabText: { color: "#788098", fontWeight: "800", fontSize: 10, letterSpacing: 1 },
-  tabTextActive: { color: "#D9D1FF" },
-  content: { padding: 20, paddingBottom: 30, gap: 14 },
-  card: { backgroundColor: "#141827", borderRadius: 20, padding: 17, borderWidth: 1, borderColor: "#252C40" },
-  brainCard: { alignItems: "center", paddingVertical: 22 },
-  label: { color: "#788098", fontSize: 10, fontWeight: "800", letterSpacing: 1.4 },
+  tabActive: { backgroundColor: "#234B39" },
+  tabText: { color: "#71857B", fontWeight: "900", fontSize: 10, letterSpacing: 1.1 },
+  tabTextActive: { color: "#B9F3D0" },
+  content: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 34, gap: 15 },
+  card: { backgroundColor: "#111A17", borderRadius: 22, padding: 18, borderWidth: 1, borderColor: "#20332A", shadowColor: "#000000", shadowOpacity: .16, shadowRadius: 12, shadowOffset: { width: 0, height: 5 }, elevation: 3 },
+  brainCard: { alignItems: "center", paddingVertical: 25, backgroundColor: "#14271F", borderColor: "#2B5741" },
+  label: { color: "#8DA99A", fontSize: 10, fontWeight: "900", letterSpacing: 1.5 },
   brainFace: { fontSize: 66, marginTop: 10 },
   brainState: { fontSize: 18, fontWeight: "900", letterSpacing: 2, marginTop: 5 },
-  progressTrack: { width: "100%", height: 9, backgroundColor: "#292F42", borderRadius: 9, overflow: "hidden", marginTop: 20 },
+  progressTrack: { width: "100%", height: 10, backgroundColor: "#263B31", borderRadius: 9, overflow: "hidden", marginTop: 20 },
   progressFill: { height: 9, borderRadius: 9 },
-  progressText: { color: "#E6E8F0", fontWeight: "800", marginTop: 9 },
+  progressText: { color: "#E4F4E9", fontWeight: "900", marginTop: 10 },
   statsRow: { flexDirection: "row", gap: 9 },
-  stat: { flex: 1, padding: 12 },
-  statNumber: { color: "#F5F6FA", fontSize: 25, fontWeight: "900", marginTop: 8 },
+  stat: { flex: 1, padding: 14, backgroundColor: "#121D19" },
+  statNumber: { color: "#F4FAF6", fontSize: 27, fontWeight: "900", marginTop: 9 },
   unit: { color: "#969DB2", fontSize: 13 },
-  sectionTitle: { color: "#F5F6FA", fontSize: 16, fontWeight: "800", marginBottom: 5 },
+  sectionTitle: { color: "#F2F8F4", fontSize: 16, fontWeight: "900", marginBottom: 6, letterSpacing: -.2 },
   entryRow: { flexDirection: "row", gap: 9, marginTop: 13 },
-  input: { flex: 1, minWidth: 0, backgroundColor: "#0D1120", borderWidth: 1, borderColor: "#343C54", borderRadius: 12, color: "#FFFFFF", paddingHorizontal: 14, paddingVertical: 11, fontSize: 16 },
-  primaryButton: { backgroundColor: "#8B72F6", borderRadius: 12, justifyContent: "center", alignItems: "center", paddingHorizontal: 15 },
+  input: { flex: 1, minWidth: 0, backgroundColor: "#0B1410", borderWidth: 1, borderColor: "#2B4035", borderRadius: 13, color: "#FFFFFF", paddingHorizontal: 14, paddingVertical: 12, fontSize: 16 },
+  primaryButton: { backgroundColor: "#42B77B", borderRadius: 13, justifyContent: "center", alignItems: "center", paddingHorizontal: 16, minHeight: 46 },
   buttonText: { color: "#FFFFFF", fontWeight: "900", fontSize: 10, letterSpacing: .5 },
   quickRow: { flexDirection: "row", gap: 8, marginTop: 10 },
-  quickButton: { flex: 1, backgroundColor: "#25213D", paddingVertical: 10, borderRadius: 10, alignItems: "center" },
-  quickText: { color: "#C6B9FF", fontWeight: "800" },
+  quickButton: { flex: 1, backgroundColor: "#1A3025", paddingVertical: 11, borderRadius: 11, alignItems: "center", borderWidth: 1, borderColor: "#2A4938" },
+  quickText: { color: "#A8E8C2", fontWeight: "900" },
   rewardRow: { flexDirection: "row", justifyContent: "space-between", marginTop: 10 },
   rewardValue: { color: "#F6C85F", fontWeight: "900" },
   rewardTrack: { height: 7, backgroundColor: "#292F42", borderRadius: 8, marginTop: 10, overflow: "hidden" },
   rewardFill: { height: 7, backgroundColor: "#F6C85F", borderRadius: 8 },
-  pageTitle: { color: "#F5F6FA", fontSize: 25, fontWeight: "900", marginBottom: 2 },
+  pageTitle: { color: "#F4F8F5", fontSize: 29, fontWeight: "900", marginBottom: 2, letterSpacing: -.8 },
+  screenIntro: { marginBottom: 2 },
+  pageEyebrow: { color: "#72C99A", fontSize: 10, fontWeight: "900", letterSpacing: 1.7, marginBottom: 7 },
   dayRow: { flexDirection: "row", alignItems: "center", gap: 9, marginTop: 15 },
   dayLabel: { color: "#969DB2", width: 35, fontSize: 12 },
   dayTrack: { flex: 1, height: 8, backgroundColor: "#292F42", borderRadius: 8, overflow: "hidden" },
-  dayFill: { height: 8, backgroundColor: "#8B72F6", borderRadius: 8 },
+  dayFill: { height: 8, backgroundColor: "#42B77B", borderRadius: 8 },
   dayValue: { color: "#E6E8F0", width: 35, textAlign: "right", fontSize: 12, fontWeight: "700" },
   achievementRow: { flexDirection: "row", alignItems: "center", gap: 12, marginTop: 16 },
   achievementIcon: { fontSize: 25 },
@@ -585,18 +586,18 @@ const s = StyleSheet.create({
   statusTag: { color: "#F6C85F", fontSize: 10, fontWeight: "900", letterSpacing: 1, marginTop: 9, marginBottom: 5 },
   guideRow: { flexDirection: "row", alignItems: "center", paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: "#252C40" },
   guideStatus: { color: "#C6B9FF", fontSize: 10, fontWeight: "900" },
-  guidePanel: { backgroundColor: "#0D1120", borderRadius: 14, borderWidth: 1, borderColor: "#6553B8", padding: 14, marginTop: 14 },
-  guideEyebrow: { color: "#C6B9FF", fontSize: 9, fontWeight: "900", letterSpacing: 1.2, marginBottom: 9 },
-  guideVisual: { minHeight: 125, backgroundColor: "#25213D", borderRadius: 12, padding: 15, justifyContent: "center", marginTop: 8 },
-  guideVisualNumber: { color: "#A997FF", fontSize: 28, fontWeight: "900", marginBottom: 8 },
+  guidePanel: { backgroundColor: "#0B1510", borderRadius: 16, borderWidth: 1, borderColor: "#386B4F", padding: 15, marginTop: 14 },
+  guideEyebrow: { color: "#8CE0B4", fontSize: 9, fontWeight: "900", letterSpacing: 1.2, marginBottom: 9 },
+  guideVisual: { minHeight: 125, backgroundColor: "#173023", borderRadius: 13, padding: 15, justifyContent: "center", marginTop: 8 },
+  guideVisualNumber: { color: "#8CE0B4", fontSize: 28, fontWeight: "900", marginBottom: 8 },
   guideVisualText: { color: "#F5F6FA", fontSize: 15, lineHeight: 22, fontWeight: "700" },
   guideProgressRow: { flexDirection: "row", gap: 6, marginTop: 12 },
   guideProgressDot: { flex: 1, height: 4, borderRadius: 3, backgroundColor: "#343C54" },
-  guideProgressDotActive: { backgroundColor: "#8B72F6" },
+  guideProgressDotActive: { backgroundColor: "#42B77B" },
   usageHeader: { flexDirection: "row", alignItems: "center", gap: 10 },
-  refreshButton: { backgroundColor: "#25213D", paddingVertical: 9, paddingHorizontal: 12, borderRadius: 9 },
-  refreshText: { color: "#C6B9FF", fontSize: 10, fontWeight: "900" },
-  primaryButtonWide: { backgroundColor: "#8B72F6", borderRadius: 12, justifyContent: "center", alignItems: "center", padding: 14, marginTop: 12 },
+  refreshButton: { backgroundColor: "#1A3025", paddingVertical: 10, paddingHorizontal: 13, borderRadius: 10, borderWidth: 1, borderColor: "#2A4938" },
+  refreshText: { color: "#A8E8C2", fontSize: 10, fontWeight: "900" },
+  primaryButtonWide: { backgroundColor: "#2F9D67", borderRadius: 13, justifyContent: "center", alignItems: "center", padding: 15, marginTop: 13, minHeight: 48 },
   appUsageRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: "#252C40" },
   appUsageName: { color: "#E6E8F0", fontWeight: "700" },
   appUsageTime: { color: "#C6B9FF", fontWeight: "900" },
@@ -604,6 +605,6 @@ const s = StyleSheet.create({
   disabledButton: { backgroundColor: "#303548", padding: 13, borderRadius: 11, alignItems: "center", marginTop: 14, opacity: .65 },
   resetButton: { borderColor: "#713848", borderWidth: 1, padding: 14, borderRadius: 12, alignItems: "center" },
   resetText: { color: "#FF8498", fontWeight: "900", fontSize: 11 },
-  footer: { paddingVertical: 10, paddingHorizontal: 20, flexDirection: "row", justifyContent: "space-between", borderTopWidth: 1, borderTopColor: "#1E2435" },
+  footer: { paddingVertical: 11, paddingHorizontal: 20, flexDirection: "row", justifyContent: "space-between", borderTopWidth: 1, borderTopColor: "#1B2A22", backgroundColor: "#080D12" },
   footerText: { color: "#69718A", fontSize: 8, fontWeight: "800", letterSpacing: .7 }
 });
