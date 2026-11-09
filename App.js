@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { SafeAreaView, View, Text, TouchableOpacity, ScrollView, StyleSheet, TextInput, Alert, StatusBar, NativeModules, AppState, Linking } from "react-native";
+import { SafeAreaView, View, Text, TouchableOpacity, ScrollView, StyleSheet, TextInput, Alert, StatusBar, NativeModules, AppState, Linking, PermissionsAndroid, Platform } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { supabase } from "./src/lib/supabase";
 import FocusTimer from "./src/components/FocusTimer";
@@ -84,6 +84,8 @@ export default function App() {
   const [usageLoading, setUsageLoading] = useState(false);
   const [usageError, setUsageError] = useState("");
   const [overlayPermission, setOverlayPermission] = useState(false);
+  const [notificationPermission, setNotificationPermission] = useState(Platform.OS !== "android" || Number(Platform.Version) < 33);
+  const [permissionPromptShown, setPermissionPromptShown] = useState(false);
   const [swipeAccessibility, setSwipeAccessibility] = useState(false);
   const [swipeCounts, setSwipeCounts] = useState({ total: 0, apps: {} });
   const [floatingEnabled, setFloatingEnabled] = useState(false);
@@ -183,6 +185,42 @@ export default function App() {
     catch (error) { Alert.alert("Settings error", error?.message || "Open Android Settings > Special app access > Usage access."); }
   }
 
+
+  async function refreshNotificationPermission() {
+    if (Platform.OS !== "android" || Number(Platform.Version) < 33) {
+      setNotificationPermission(true);
+      return true;
+    }
+    try {
+      const granted = await PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS);
+      setNotificationPermission(!!granted);
+      return !!granted;
+    } catch (error) {
+      setNotificationPermission(false);
+      return false;
+    }
+  }
+
+  async function requestNotificationPermission() {
+    if (Platform.OS !== "android" || Number(Platform.Version) < 33) {
+      setNotificationPermission(true);
+      return;
+    }
+    try {
+      const result = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS, {
+        title: "Allow BrainGuard notifications",
+        message: "BrainGuard uses an ongoing notification to show when your Reel Counter is active.",
+        buttonPositive: "Allow",
+        buttonNegative: "Not now"
+      });
+      const granted = result === PermissionsAndroid.RESULTS.GRANTED;
+      setNotificationPermission(granted);
+      if (!granted) Alert.alert("Notifications are off", "You can enable BrainGuard notifications later in Android Settings.");
+    } catch (error) {
+      Alert.alert("Permission error", error?.message || "Could not request notification permission.");
+    }
+  }
+
   async function refreshSwipeStatus() {
     if (!usageNative) return;
     try {
@@ -262,11 +300,27 @@ export default function App() {
   useEffect(() => {
     refreshUsage();
     refreshSwipeStatus();
+    refreshNotificationPermission();
     const sub = AppState.addEventListener("change", state => {
-      if (state === "active") { refreshUsage(); refreshSwipeStatus(); }
+      if (state === "active") { refreshUsage(); refreshSwipeStatus(); refreshNotificationPermission(); }
     });
     return () => sub.remove();
   }, [authUser?.id]);
+
+  useEffect(() => {
+    if (!authUser || !loaded || permissionPromptShown) return;
+    setPermissionPromptShown(true);
+    if (!usageAccess || !swipeAccessibility || !overlayPermission) {
+      Alert.alert(
+        "Set up your Reel Counter",
+        "Allow Usage Access, Swipe Counter Accessibility and Display over other apps to enable automatic tracking. Android will ask you to approve each permission in Settings.",
+        [
+          { text: "Later", style: "cancel" },
+          { text: "Set up now", onPress: () => requestUsageAccess() }
+        ]
+      );
+    }
+  }, [authUser?.id, loaded, permissionPromptShown]);
 
   const brain = useMemo(() => brainFor(data.minutes, data.goal), [data.minutes, data.goal]);
   const progress = Math.min(1, data.goal > 0 ? data.minutes / data.goal : 0);
@@ -389,6 +443,7 @@ export default function App() {
         <TouchableOpacity style={s.primaryButtonWide} onPress={enableFloatingWidget}><Text style={s.buttonText}>{floatingEnabled ? "COUNTER ACTIVE" : "ENABLE FLOATING REEL COUNTER"}</Text></TouchableOpacity>
         {!!overlayError && <Text style={s.errorText}>{overlayError}</Text>}
       </Card>
+        <View style={{flexDirection:"row",alignItems:"center",paddingVertical:11,borderBottomWidth:1,borderBottomColor:"#294234"}}><View style={{flex:1}}><Text style={s.appUsageName}>Notifications</Text><Text style={{color:notificationPermission ? "#8CE0B4" : "#F6C85F",fontSize:9,fontWeight:"900",marginTop:4}}>{notificationPermission ? "ENABLED" : "ACTION REQUIRED"}</Text></View><TouchableOpacity style={s.refreshButton} onPress={requestNotificationPermission}><Text style={s.refreshText}>{notificationPermission ? "CHECK" : "ENABLE"}</Text></TouchableOpacity></View>
       <View style={s.screenIntro}><Text style={s.pageEyebrow}>YOUR DAILY RESET</Text><Text style={s.pageTitle}>Today at a glance</Text><Text style={s.muted}>Small choices. Better attention.</Text></View>
       <Card style={s.brainCard}>
         <Label>YOUR BRAIN RIGHT NOW</Label>
