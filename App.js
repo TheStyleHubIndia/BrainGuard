@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { SafeAreaView, View, Text, TouchableOpacity, ScrollView, StyleSheet, TextInput, Alert, StatusBar, NativeModules, AppState, Linking } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { supabase } from "./src/lib/supabase";
+import FocusTimer from "./src/components/FocusTimer";
 
 const STORAGE_KEY = "brainguard.v01.state";
 const usageNative = NativeModules.BrainGuardUsageStats;
@@ -11,7 +12,7 @@ const localDateKey = (date = new Date()) => {
   const d = String(date.getDate()).padStart(2, "0");
   return y + "-" + m + "-" + d;
 };
-const defaults = { minutes: 0, sessions: 0, goal: 90, xp: 0, streak: 0, lastActiveDate: null, history: {}, sessionsByDay: {}, achievements: [] };
+const defaults = { minutes: 0, sessions: 0, focusMinutes: 0, focusSessions: 0, goal: 90, xp: 0, streak: 0, lastActiveDate: null, history: {}, sessionsByDay: {}, achievements: [] };
 
 function normalizeStoredData(value, today) {
   const source = value && typeof value === "object" && !Array.isArray(value) ? value : {};
@@ -39,6 +40,8 @@ function normalizeStoredData(value, today) {
     ...defaults,
     minutes: validHistory[today] || 0,
     sessions: validSessions[today] || 0,
+    focusMinutes: safeNumber(source.focusMinutes, 0, 0, 100000000),
+    focusSessions: safeNumber(source.focusSessions, 0, 0, 1000000),
     goal: safeNumber(source.goal, 90, 15, 720),
     xp: safeNumber(source.xp, 0, 0, 100000000),
     streak: safeNumber(source.streak, 0, 0, 1000000),
@@ -305,6 +308,13 @@ export default function App() {
     }
   }
 
+  function logFocusSession(mins) {
+    const endedAt = new Date();
+    setData(prev => ({ ...prev, focusMinutes: (prev.focusMinutes || 0) + mins, focusSessions: (prev.focusSessions || 0) + 1 }));
+    if (authUser?.id) supabase.from("focus_sessions").insert({ user_id: authUser.id, started_at: new Date(endedAt.getTime() - mins * 60000).toISOString(), ended_at: endedAt.toISOString(), duration_minutes: mins, session_type: "focus" }).then(({ error }) => { if (error) console.warn("BrainGuard focus cloud sync:", error.message); });
+    Alert.alert("Focus session complete", mins + " minutes added to your focus total.");
+  }
+
   function saveGoal() {
     const goal = Number(goalEntry);
     if (!Number.isInteger(goal) || goal < 15 || goal > 720) {
@@ -380,6 +390,7 @@ export default function App() {
         {!!usageError && <Text style={s.errorText}>{usageError}</Text>}
         <Text style={s.muted}>Last 7 days combined: {usageWeek.reduce((sum, item) => sum + (item.minutes || 0), 0)} minutes.</Text>
       </Card>
+      <FocusTimer onComplete={logFocusSession} />
       <Card>
         <Text style={s.sectionTitle}>Log a scrolling session</Text>
         <Text style={s.muted}>Manual entry only — this prototype does not automatically track phone usage.</Text>
@@ -390,6 +401,11 @@ export default function App() {
         <View style={s.quickRow}>{[5, 10, 15, 30].map(n =>
           <TouchableOpacity key={n} style={s.quickButton} onPress={() => addMinutes(String(n))}><Text style={s.quickText}>+{n}m</Text></TouchableOpacity>
         )}</View>
+      </Card>
+      <Card>
+        <Text style={s.sectionTitle}>Focus completed</Text>
+        <View style={s.rewardRow}><Text style={s.muted}>Total focus time</Text><Text style={s.rewardValue}>{data.focusMinutes || 0} min</Text></View>
+        <View style={s.rewardRow}><Text style={s.muted}>Completed sessions</Text><Text style={s.rewardValue}>{data.focusSessions || 0}</Text></View>
       </Card>
       <Card>
         <Text style={s.sectionTitle}>Your rewards</Text>
