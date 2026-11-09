@@ -36,3 +36,10 @@
 - [ ] Verify Snapchat Spotlight swipe count
 - [ ] Verify local-midnight reset
 - [ ] Verify floating widget count updates and drag behavior
+
+
+## Swipe direction / rewatch suppression
+- Counts only positive forward scroll deltas; negative reverse scrolls are ignored.
+- The first forward scroll after a reverse scroll is suppressed to avoid counting a likely rewatch/return.
+- Events are debounced per app; zero-delta and Android versions below API 28 are not counted by this directional implementation.
+- Exact Reel identity is unavailable, so this remains a conservative estimate; a genuinely new forward Reel immediately after reversing may also be missed.
