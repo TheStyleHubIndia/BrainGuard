@@ -74,6 +74,7 @@ import com.facebook.react.bridge.WritableArray;
 import com.facebook.react.bridge.WritableMap;
 import java.text.SimpleDateFormat;
 import java.util.Date;
+import java.util.Calendar;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -136,7 +137,14 @@ public class UsageStatsModule extends ReactContextBaseJavaModule {
         return;
       }
       long now = System.currentTimeMillis();
-      long start = now - Math.max(1, Math.min(days, 7)) * 24L * 60L * 60L * 1000L;
+      int safeDays = Math.max(1, Math.min(days, 7));
+      Calendar calendar = Calendar.getInstance();
+      calendar.set(Calendar.HOUR_OF_DAY, 0);
+      calendar.set(Calendar.MINUTE, 0);
+      calendar.set(Calendar.SECOND, 0);
+      calendar.set(Calendar.MILLISECOND, 0);
+      calendar.add(Calendar.DAY_OF_YEAR, -(safeDays - 1));
+      long start = calendar.getTimeInMillis();
       Map<String, Long> totals = new HashMap<>();
       Map<String, Long> lastUsed = new HashMap<>();
       for (UsageStats stat : manager.queryUsageStats(UsageStatsManager.INTERVAL_DAILY, start, now)) {
