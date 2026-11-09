@@ -35,7 +35,7 @@ export default function FocusTimer({ onComplete }) {
     <View style={s.timerWrap}><Text style={s.time}>{mm}:{ss}</Text><Text style={s.status}>{running ? "SESSION IN PROGRESS" : remaining === 0 ? "SESSION COMPLETE" : "READY WHEN YOU ARE"}</Text></View>
     <View style={s.track}><View style={[s.fill, { width: (progress * 100) + "%" }]} /></View>
     <View style={s.actions}>
-      <TouchableOpacity style={s.primary} onPress={() => { if (remaining === 0) reset(); setRunning(value => !value); }}><Text style={s.primaryText}>{running ? "PAUSE" : remaining === 0 ? "START AGAIN" : "START FOCUS"}</Text></TouchableOpacity>
+      <TouchableOpacity style={s.primary} onPress={() => { if (running) { setRunning(false); return; } if (remaining === 0) { completed.current = false; setRemaining(minutes * 60); setRunning(true); return; } setRunning(true); }}><Text style={s.primaryText}>{running ? "PAUSE" : remaining === 0 ? "START AGAIN" : "START FOCUS"}</Text></TouchableOpacity>
       <TouchableOpacity style={s.secondary} onPress={reset}><Text style={s.secondaryText}>RESET</Text></TouchableOpacity>
     </View>
   </View>;
