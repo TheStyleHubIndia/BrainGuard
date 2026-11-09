@@ -410,7 +410,7 @@ export default function App() {
 
     {tab === "settings" && <ScrollView contentContainerStyle={s.content}>
       <Text style={s.pageTitle}>Settings</Text>
-      <Card><Text style={s.sectionTitle}>Account</Text><Text style={s.muted}>{authUser?.email || "Signed in"}</Text><TouchableOpacity style={s.primaryButtonWide} onPress={signOut}><Text style={s.buttonText}>SIGN OUT</Text></TouchableOpacity></Card>\n      <Card><Text style={s.sectionTitle}>Account</Text><Text style={s.muted}>{authUser?.email || "Signed in"}</Text><TouchableOpacity style={s.primaryButtonWide} onPress={signOut}><Text style={s.buttonText}>SIGN OUT</Text></TouchableOpacity></Card>
+      <Card><Text style={s.sectionTitle}>Account</Text><Text style={s.muted}>{authUser?.email || "Signed in"}</Text><TouchableOpacity style={s.primaryButtonWide} onPress={signOut}><Text style={s.buttonText}>SIGN OUT</Text></TouchableOpacity></Card>
       <Card>
         <Text style={s.sectionTitle}>Daily scrolling goal</Text><Text style={s.muted}>Set your target in minutes (15–720).</Text>
         <View style={s.entryRow}>
@@ -461,7 +461,7 @@ export default function App() {
         <Text style={s.muted}>Not active in this prototype. System-level blocking needs a separately implemented Android service, user opt-in, and compatibility and policy testing.</Text>
         <TouchableOpacity style={s.disabledButton} disabled><Text style={s.buttonText}>BLOCKER — NOT AVAILABLE YET</Text></TouchableOpacity>
       </Card>
-      <Card><Text style={s.sectionTitle}>Privacy</Text><Text style={s.muted}>Prototype stats are stored locally on this device using AsyncStorage. No account or cloud sync is configured.</Text></Card>
+      <Card><Text style={s.sectionTitle}>Privacy</Text><Text style={s.muted}>Focus goals and detailed history remain on this device. When signed in, profile basics, manual focus sessions, and estimated daily swipe counts are synced to your BrainGuard account.</Text></Card>
       <TouchableOpacity style={s.resetButton} onPress={resetToday}><Text style={s.resetText}>RESET TODAY'S DEMO DATA</Text></TouchableOpacity>
     </ScrollView>}
 
