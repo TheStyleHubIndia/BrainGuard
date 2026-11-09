@@ -486,10 +486,12 @@ public class BrainGuardOverlayService extends Service {
       int youtube = prefs.getInt("count_" + day + "_youtube", 0);
       int facebook = prefs.getInt("count_" + day + "_facebook", 0);
       int snapchat = prefs.getInt("count_" + day + "_snapchat", 0);
-      return "TODAY  " + getTodaySwipeCount() + " scrolls\nInstagram  " + instagram
-        + "   •   YouTube  " + youtube + "\nFacebook  " + facebook + "   •   Snapchat  " + snapchat
-        + "\nTap to collapse";
-    } catch (Exception e) { return "TODAY  " + getTodaySwipeCount() + " scrolls\nTap to collapse"; }
+      return "TODAY  " + getTodaySwipeCount() + " scrolls\\nInstagram  " + instagram
+        + " | YouTube  " + youtube + "\\nFacebook  " + facebook + " | Snapchat  " + snapchat
+        + "\\nTap to collapse";
+    } catch (Exception e) {
+      return "TODAY  " + getTodaySwipeCount() + " scrolls\\nTap to collapse";
+    }
   }
 
   private int getTodayMinutes() {
