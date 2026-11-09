@@ -67,8 +67,11 @@ export default function App() {
   const [authReady, setAuthReady] = useState(false);
   const [authUser, setAuthUser] = useState(null);
   const [authMode, setAuthMode] = useState("signin");
+  const [authName, setAuthName] = useState("");
   const [authEmail, setAuthEmail] = useState("");
   const [authPassword, setAuthPassword] = useState("");
+  const [authConfirmPassword, setAuthConfirmPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [authBusy, setAuthBusy] = useState(false);
   const [authMessage, setAuthMessage] = useState("");
   const [loaded, setLoaded] = useState(false);
@@ -115,11 +118,14 @@ export default function App() {
   async function submitAuth() {
     const email = authEmail.trim().toLowerCase();
     if (!email || !/^\S+@\S+\.\S+$/.test(email)) { setAuthMessage("Enter a valid email address."); return; }
+    if (authMode === "signup" && authName.trim().length < 2) { setAuthMessage("Enter your name (at least 2 characters)."); return; }
     if (authMode !== "reset" && authPassword.length < 8) { setAuthMessage("Password must be at least 8 characters."); return; }
+    if (authMode === "signup" && authPassword !== authConfirmPassword) { setAuthMessage("Passwords do not match."); return; }
+    if (authMode === "signup" && !/(?=.*[A-Za-z])(?=.*[0-9])/.test(authPassword)) { setAuthMessage("Use at least one letter and one number."); return; }
     setAuthBusy(true); setAuthMessage("");
     try {
       if (authMode === "signup") {
-        const { data, error } = await supabase.auth.signUp({ email, password: authPassword });
+        const { data, error } = await supabase.auth.signUp({ email, password: authPassword, options: { data: { full_name: authName.trim() } } });
         if (error) throw error;
         setAuthMessage(data.session ? "Account created. You are signed in." : "Account created. Check your email to verify it, then sign in.");
         if (!data.session) setAuthMode("signin");
@@ -337,17 +343,22 @@ export default function App() {
   if (!authUser) return <SafeAreaView style={s.container}>
     <StatusBar barStyle="light-content" />
     <ScrollView contentContainerStyle={s.authWrap}>
-      <Text style={s.brand}>BRAINGUARD</Text>
-      <Text style={s.pageTitle}>{authMode === "signup" ? "Create your account" : authMode === "reset" ? "Reset password" : "Welcome back"}</Text>
-      <Text style={s.muted}>Sign in to sync your focus progress across devices.</Text>
+      <View style={{alignItems:"center",paddingVertical:12}}>
+        <Text style={{fontSize:48}}>🧠</Text>
+        <Text style={s.brand}>BRAINGUARD</Text>
+        <Text style={s.pageTitle}>{authMode === "signup" ? "Build better habits." : authMode === "reset" ? "Reset password" : "Welcome back."}</Text>
+        <Text style={s.muted}>{authMode === "signup" ? "Create your private focus profile." : "Sign in to sync your focus progress."}</Text>
+      </View>
       <Card>
-        <Label>EMAIL</Label>
+        {authMode === "signup" && <><Label>YOUR NAME</Label><TextInput value={authName} onChangeText={setAuthName} autoCapitalize="words" autoComplete="name" placeholder="Your name" placeholderTextColor="#788098" style={[s.input,{marginTop:8,marginBottom:14}]} /></>}
+        <Label>EMAIL ADDRESS</Label>
         <TextInput value={authEmail} onChangeText={setAuthEmail} autoCapitalize="none" keyboardType="email-address" autoComplete="email" placeholder="you@example.com" placeholderTextColor="#788098" style={[s.input,{marginTop:8,marginBottom:14}]} />
-        {authMode !== "reset" && <><Label>PASSWORD</Label><TextInput value={authPassword} onChangeText={setAuthPassword} secureTextEntry autoComplete={authMode === "signup" ? "new-password" : "password"} placeholder="At least 8 characters" placeholderTextColor="#788098" style={[s.input,{marginTop:8}]} /></>}
-        <TouchableOpacity disabled={authBusy} style={s.primaryButtonWide} onPress={submitAuth}><Text style={s.buttonText}>{authBusy ? "PLEASE WAIT…" : authMode === "signup" ? "CREATE ACCOUNT" : authMode === "reset" ? "SEND RESET EMAIL" : "SIGN IN"}</Text></TouchableOpacity>
-        {!!authMessage && <Text style={s.muted}>{authMessage}</Text>}
+        {authMode !== "reset" && <><Label>PASSWORD</Label><View style={{flexDirection:"row",alignItems:"center",marginTop:8,marginBottom:14}}><TextInput value={authPassword} onChangeText={setAuthPassword} secureTextEntry={!showPassword} autoComplete={authMode === "signup" ? "new-password" : "password"} placeholder="At least 8 characters" placeholderTextColor="#788098" style={[s.input,{flex:1}]} /><TouchableOpacity onPress={() => setShowPassword(v => !v)} style={{padding:10}}><Text style={s.showPasswordText}>{showPassword ? "HIDE" : "SHOW"}</Text></TouchableOpacity></View>}
+        {authMode === "signup" && <><Label>CONFIRM PASSWORD</Label><TextInput value={authConfirmPassword} onChangeText={setAuthConfirmPassword} secureTextEntry={!showPassword} placeholder="Enter password again" placeholderTextColor="#788098" style={[s.input,{marginTop:8}]} /><Text style={s.helperText}>Use 8+ characters with at least one letter and one number.</Text></>}
+        <TouchableOpacity disabled={authBusy} style={s.primaryButtonWide} onPress={submitAuth}><Text style={s.buttonText}>{authBusy ? "PLEASE WAIT…" : authMode === "signup" ? "CREATE MY ACCOUNT →" : authMode === "reset" ? "SEND RESET EMAIL" : "SIGN IN →"}</Text></TouchableOpacity>
+        {!!authMessage && <Text style={s.authFeedback}>{authMessage}</Text>}
         {authMode === "signin" && <TouchableOpacity onPress={() => {setAuthMode("reset");setAuthMessage("");}}><Text style={s.authLink}>Forgot password?</Text></TouchableOpacity>}
-        <TouchableOpacity onPress={() => {setAuthMode(authMode === "signup" ? "signin" : "signup");setAuthMessage("");}}><Text style={s.authLink}>{authMode === "signup" ? "Already have an account? Sign in" : "New to BrainGuard? Create account"}</Text></TouchableOpacity>
+        <TouchableOpacity onPress={() => {setAuthMode(authMode === "signup" ? "signin" : "signup");setAuthMessage("");setAuthConfirmPassword("");}}><Text style={s.authLink}>{authMode === "signup" ? "Already have an account? Sign in" : "New to BrainGuard? Create account"}</Text></TouchableOpacity>
       </Card>
       <Card><Text style={s.sectionTitle}>Google sign-in</Text><Text style={s.muted}>Google OAuth is not enabled yet. It needs Google Cloud OAuth credentials and redirect configuration.</Text></Card>
       <Text style={s.footerText}>Your existing local profile remains stored on this device.</Text>
@@ -367,6 +378,17 @@ export default function App() {
     )}</View>
 
     {tab === "home" && <ScrollView contentContainerStyle={s.content} showsVerticalScrollIndicator={false}>
+      <Card style={{borderColor:"#386B4F",backgroundColor:"#12231B"}}>
+        <Text style={s.sectionTitle}>Set up your Reel Counter</Text>
+        <Text style={s.muted}>Enable Android permissions to activate automatic scroll tracking and the floating counter.</Text>
+        {[
+          ["Usage Access",usageAccess,requestUsageAccess],
+          ["Swipe Counter Accessibility",swipeAccessibility,enableSwipeTracking],
+          ["Display over other apps",overlayPermission,() => openPermissionGuideSettings("overlay")]
+        ].map(([label,granted,action]) => <View key={label} style={{flexDirection:"row",alignItems:"center",paddingVertical:11,borderBottomWidth:1,borderBottomColor:"#294234"}}><View style={{flex:1}}><Text style={s.appUsageName}>{label}</Text><Text style={{color:granted ? "#8CE0B4" : "#F6C85F",fontSize:9,fontWeight:"900",marginTop:4}}>{granted ? "ENABLED" : "ACTION REQUIRED"}</Text></View><TouchableOpacity style={s.refreshButton} onPress={action}><Text style={s.refreshText}>{granted ? "CHECK" : "ENABLE"}</Text></TouchableOpacity></View>)}
+        <TouchableOpacity style={s.primaryButtonWide} onPress={enableFloatingWidget}><Text style={s.buttonText}>{floatingEnabled ? "COUNTER ACTIVE" : "ENABLE FLOATING REEL COUNTER"}</Text></TouchableOpacity>
+        {!!overlayError && <Text style={s.errorText}>{overlayError}</Text>}
+      </Card>
       <View style={s.screenIntro}><Text style={s.pageEyebrow}>YOUR DAILY RESET</Text><Text style={s.pageTitle}>Today at a glance</Text><Text style={s.muted}>Small choices. Better attention.</Text></View>
       <Card style={s.brainCard}>
         <Label>YOUR BRAIN RIGHT NOW</Label>
@@ -551,7 +573,10 @@ export default function App() {
 const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#080D12" },
   authWrap: { flexGrow: 1, justifyContent: "center", padding: 20, gap: 16 },
-  authLink: { color: "#C6B9FF", textAlign: "center", fontWeight: "800", marginTop: 16 },
+  authLink: { color: "#8CE0B4", textAlign: "center", fontWeight: "800", marginTop: 16 },
+  showPasswordText: { color: "#8CE0B4", fontSize: 10, fontWeight: "900" },
+  helperText: { color: "#82958A", fontSize: 11, marginTop: 8 },
+  authFeedback: { color: "#B9F3D0", fontSize: 12, lineHeight: 18, marginTop: 12 },
   title: { color: "#F5F6FA", fontSize: 24, fontWeight: "900", padding: 20 },
   header: { paddingHorizontal: 22, paddingTop: 16, paddingBottom: 14, flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   brand: { color: "#F4F8F5", fontSize: 17, fontWeight: "900", letterSpacing: 2.4 },
