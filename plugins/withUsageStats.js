@@ -289,7 +289,9 @@ public class BrainGuardOverlayService extends Service {
   @Override public void onCreate() {
     super.onCreate();
     createChannel();
-    Notification notification = new Notification.Builder(this, CHANNEL)
+    Notification.Builder notificationBuilder = Build.VERSION.SDK_INT >= 26
+      ? new Notification.Builder(this, CHANNEL) : new Notification.Builder(this);
+    Notification notification = notificationBuilder
       .setContentTitle("BrainGuard floating counter")
       .setContentText("Your wellbeing counter is active")
       .setSmallIcon(android.R.drawable.ic_menu_info_details)
