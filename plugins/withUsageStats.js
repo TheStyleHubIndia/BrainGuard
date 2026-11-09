@@ -325,6 +325,7 @@ public class UsageStatsModule extends ReactContextBaseJavaModule {
     fs.writeFileSync(path.join(root, "BrainGuardSwipeAccessibilityService.java"), `package ${PACKAGE};
 
 import android.accessibilityservice.AccessibilityService;
+import android.os.Build;
 import android.view.accessibility.AccessibilityEvent;
 import android.content.SharedPreferences;
 import java.text.SimpleDateFormat;
